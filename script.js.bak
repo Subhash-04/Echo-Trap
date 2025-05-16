@@ -1,0 +1,3737 @@
+// Game state variables
+let currentLevel = 0;
+let timer;
+let timeRemaining = 20 * 60; // 20 minutes in seconds
+let isPaused = false;
+let soundEnabled = true;
+let gameLevels = []; // Will be populated by setupLevels
+let collectedKeys = {}; // Object to store collected keys { keyName: true }
+let gameState = "intro"; // Added game state variable with default state
+
+// DOM Elements
+let correctSound = document.getElementById("correct-sound");
+let wrongSound = document.getElementById("wrong-sound");
+let clickSound = document.getElementById("click-sound");
+let gameOverSound = document.getElementById("game-over-sound");
+let keyAcquiredSound = document.getElementById("key-acquired-sound"); 
+const timerElement = document.getElementById("timer");
+let bgMusic = document.getElementById("bg-music");
+
+// --- IMAGE PUZZLE SPECIFIC VARS ---
+let draggedPiece = null;
+const puzzleGridSize = 3;
+const pieceSize = 100;
+let puzzlePieces = [];
+let dropTargets = [];
+const correctPieceOrder = Array.from(Array(puzzleGridSize * puzzleGridSize).keys());
+let viewImageUsageCount = 0;
+const maxViewImageUsage = 3; // Maximum number of times the user can view the original image
+
+// --- PATTERN LOCK PUZZLE VARS ---
+let patternLockNodes = [];
+let currentPattern = [];
+const correctPattern = [0, 1, 2, 5, 8, 7, 6, 3];
+
+// --- SOUND SEQUENCE PUZZLE VARS ---
+let soundSequence = [];
+let playerSoundSequence = [];
+const soundButtons = [];
+const availableSounds = [
+    { id: "sound1", freq: 261.63 }, { id: "sound2", freq: 293.66 },
+    { id: "sound3", freq: 329.63 }, { id: "sound4", freq: 349.23 }
+];
+let soundSequenceLength = 3;
+let canPlayerInputSound = false;
+
+// --- CODE DECRYPTION VARS (LEVEL 6) ---
+let encryptedMessage = "";
+let decryptionKey = "";
+
+// --- QUANTUM CIRCUIT VARS (LEVEL 2 NEW) ---
+const targetQuantumState = [1, 0, 1, 1]; // Example
+const availableQuantumGates = ["H", "CNOT", "X", "Z"]; // Example
+let currentQuantumCircuit = []; // Will store user's gate arrangement
+
+// --- NEURAL NETWORK VARS (LEVEL 3 NEW) ---
+const targetAccuracy = 0.95;
+let currentNNWeights = {}; // Example: { layer1: [...], layer2: [...] }
+
+// --- CRYPTO SEQUENCE VARS (LEVEL 4 NEW) ---
+const encryptedCryptoSequence = "F1A9B2C8D3";
+// Matrix key details are vague, will use a simple text key for now
+const cryptoMatrixKey = "CYBERMATRIX"; 
+
+// --- SYSTEM OVERRIDE VARS (LEVEL 5 NEW) ---
+const systemOverrideCode = "NEXUS_DOWN";
+
+// --- HOLO MAZE VARS (LEVEL 6) ---
+let mazeGrid = [];
+let playerPosition = { row: 0, col: 0 };
+let targetPosition = { row: 7, col: 7 };
+const mazeSize = 8;
+
+// --- QUANTUM CIRCUIT VARS (LEVEL 7) ---
+let circuitPieces = [];
+let correctCircuitConfig = [
+    "straight-0", "corner-0", "tjunction-0", 
+    "corner-270", "straight-90", "corner-180", 
+    "tjunction-270", "corner-90", "straight-0"
+];
+
+// --- CODE DECRYPTION TERMINAL VARS (LEVEL 7 - NEW) ---
+let codeSymbols = ["⌬", "⎔", "⏣", "⏥", "⌘", "⍟", "⍰", "⎈"];
+let correctCodeCombination = ["⎔", "⏣", "⍟", "⎈", "⌘"];
+let selectedSymbols = [];
+let maxCodeLength = 5;
+
+// --- PATTERN SEQUENCE VARS (LEVEL 8) ---
+let sequencePattern = [2, 4, 1, 3, 5];
+let userPattern = [];
+let isDisplayingPattern = false;
+
+// --- FINAL KEYS VARS (LEVEL 9-10) ---
+let insertedKeys = {
+    "DATAKEY_ALPHA": false,
+    "COREKEY_BETA": false,
+    "NEURAL_KEY_GAMMA": false,
+    "BINARY_KEY_DELTA": false,
+    "PATH_KEY_EPSILON": false,
+    "MAZE_KEY_ZETA": false,
+    "CIRCUIT_KEY_ETA": false,
+    "SEQUENCE_KEY_THETA": false
+};
+
+// --- CAESAR CIPHER PUZZLE HELPER FUNCTIONS (LEVEL 2 NEW) ---
+function applyCaesarCipher(text, shift) {
+    let result = "";
+    for (let i = 0; i < text.length; i++) {
+        let char = text[i];
+        if (char.match(/[a-z]/i)) {
+            let code = text.charCodeAt(i);
+            let base = (code >= 65 && code <= 90) ? 65 : 97;
+            char = String.fromCharCode(((code - base + (shift % 26) + 26) % 26) + base);
+        }
+        result += char;
+    }
+    return result;
+}
+
+function handleCaesarDecrypt() {
+    playSound(clickSound);
+    const shiftInput = document.getElementById("caesar-shift-input");
+    const decryptedPreview = document.getElementById("decrypted-text-preview");
+    const currentLevelData = gameLevels[currentLevel];
+
+    if (!shiftInput || !decryptedPreview || !currentLevelData) return;
+
+    const shiftValue = parseInt(shiftInput.value);
+    
+    if (isNaN(shiftValue)) {
+        decryptedPreview.textContent = "Preview: Invalid shift value.";
+        decryptedPreview.style.color = "var(--feedback-error-color)";
+        return;
+    }
+
+    const decryptedText = applyCaesarCipher(currentLevelData.encryptedText, -shiftValue);
+    decryptedPreview.textContent = "Preview: " + decryptedText;
+    decryptedPreview.style.color = "var(--feedback-neutral-color)";
+}
+
+function checkCaesarKeyword() {
+    playSound(clickSound);
+    const keywordInput = document.getElementById("caesar-keyword-input");
+    const currentLevelData = gameLevels[currentLevel];
+
+    if (!keywordInput || !currentLevelData) return;
+    const userAnswer = keywordInput.value.toUpperCase();
+    const expectedAnswer = currentLevelData.expectedAnswer.toUpperCase();
+
+    if (userAnswer === expectedAnswer) {
+        playSound(correctSound);
+        showFeedback("Keyword accepted. Access protocol initiated.", "success");
+        awardKey(currentLevelData.awardsKey);
+        displayAwardedKey(currentLevelData.awardsKey, proceedToNextLevel);
+        
+        if(document.getElementById("decrypt-caesar-btn")) document.getElementById("decrypt-caesar-btn").disabled = true;
+        if(document.getElementById("caesar-shift-input")) document.getElementById("caesar-shift-input").disabled = true;
+        if(document.getElementById("caesar-keyword-input")) document.getElementById("caesar-keyword-input").disabled = true;
+        if(document.getElementById("submit-caesar-keyword-btn")) document.getElementById("submit-caesar-keyword-btn").disabled = true;
+
+    } else {
+        playSound(wrongSound);
+        showFeedback("Incorrect keyword. NEXUS protocols remain active.", "error");
+        penalizeTime(30);
+    }
+}
+
+
+
+function setupLevels() {
+    gameLevels = [
+        // LEVEL 1 (Image Puzzle - updated with View Image button)
+        {
+            levelType: "imagePuzzle",
+            dialogue: "NEXUS: \"The first trial. Reconstruct the fragmented memory. The key is in the coherence.\"",
+            imageSrc: "assets/cyberpunk_data_grid_puzzle_background.jpeg",
+            awardsKey: "DATAKEY_ALPHA",
+            hint: "Observe the flow of data. The grid holds the pattern.",
+            timerPosition: "timer-pos-default",
+            customHTML: function() {
+                return `<div class="puzzle-frame image-puzzle-layout">
+                            <div id="pieces-container" class="pieces-container"></div>
+                            <div id="image-puzzle-container" class="image-puzzle-container"></div>
+                            <div class="puzzle-controls" style="margin-top:15px; display:flex; justify-content:space-between; width:100%;">
+                                <button id="hint-btn" onclick="showHint()" class="hint-btn cyberpunk-button-small">HINT</button>
+                                <button id="view-image-btn" onclick="viewOriginalImage()" class="cyberpunk-button-small" style="background: linear-gradient(to right, rgba(255, 0, 255, 0.1), rgba(0, 0, 0, 0.7)); border-color: var(--secondary-color); color: var(--secondary-color);">VIEW IMAGE (${maxViewImageUsage} left)</button>
+                            </div>
+                            <div id="hint-display" class="hint-text hidden"></div>
+                            <div id="original-image-display" class="hidden" style="position:absolute; top:0; left:0; width:100%; height:100%; background:#000; z-index:100; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+                                <img id="original-image" style="max-width:90%; max-height:70%; border:3px solid var(--primary-color);" />
+                                <p style="margin-top:15px; color:var(--warning-color);">Image will disappear in <span id="image-countdown">8</span> seconds.</p>
+                            </div>
+                            <div id="key-display-area" class="key-display-area hidden"></div>
+                            <button id="continue-btn" class="cyberpunk-button hidden" onclick="nextLevel()">CONTINUE</button>
+                         </div>`;
+            }
+        },
+        // LEVEL 2: Word Unscramble (previously Level 5)
+        {
+            levelType: "wordUnscramble",
+            dialogue: "NEXUS: \"Core command syntax scrambled. Reconstruct the system override command.\"",
+            scrambledWord: "SUXEN_WNOD",
+            correctWord: "NEXUS_DOWN",
+            awardsKey: "COREKEY_BETA",
+            hint: "Rearrange the letters to form a command that would shut down the AI system.",
+            timerPosition: "timer-pos-default",
+            customHTML: `
+                <div class="puzzle-frame">
+                    <p class="nexus-text">Unscramble the system command:</p>
+                    <div id="scrambled-letters" class="scrambled-letters"></div>
+                    <div id="answer-container" class="answer-container"></div>
+                    <div class="puzzle-input-group" style="margin-top:20px;">
+                        <button id="reset-unscramble-btn" onclick="resetUnscramble()" class="cyberpunk-button-small">RESET</button>
+                        <button id="check-unscramble-btn" onclick="checkUnscramble()" class="cyberpunk-button">VALIDATE COMMAND</button>
+                    </div>
+                    <div id="key-display-area" class="key-display-area hidden"></div>
+                    <button id="hint-btn" onclick="showHint()" class="hint-btn cyberpunk-button-small">HINT</button>
+                    <div id="hint-display" class="hint-text hidden"></div>
+                </div>
+            `
+        },
+        // LEVEL 3: Eight Queens Puzzle (from Level 6)
+        {
+            levelType: "eightQueens",
+            dialogue: "NEXUS: \"The neural network defense matrix requires strategic placement. Position the quantum nodes to avoid detection pathways.\"",
+            awardsKey: "NEURAL_KEY_GAMMA",
+            hint: "Place 8 quantum nodes (queens) on the board so that no two can detect each other. In chess terms, no queen can attack another queen.",
+            timerPosition: "timer-pos-default",
+            customHTML: `
+                <div class="puzzle-frame">
+                    <p class="nexus-text">Position 8 quantum nodes to avoid all detection pathways:</p>
+                    <div id="chessboard" class="chessboard"></div>
+                    <div class="puzzle-input-group" style="margin-top:20px;">
+                        <button id="reset-queens-btn" onclick="resetEightQueens()" class="cyberpunk-button-small">RESET</button>
+                        <button id="check-queens-btn" onclick="checkEightQueens()" class="cyberpunk-button">VERIFY PLACEMENT</button>
+                    </div>
+                    <div id="key-display-area" class="key-display-area hidden"></div>
+                    <button id="hint-btn" onclick="showHint()" class="hint-btn cyberpunk-button-small">HINT</button>
+                    <div id="hint-display" class="hint-text hidden"></div>
+                </div>
+            `
+        },
+        // LEVEL 4: Binary Tree Puzzle (New)
+        {
+            levelType: "binaryTree",
+            dialogue: "NEXUS: \"Data corruption detected in my binary neural pathways. Identify the corrupted node in this binary search tree.\"",
+            awardsKey: "BINARY_KEY_DELTA",
+            hint: "This is a Binary Search Tree where each node's value should be greater than all values in its left subtree and less than all values in its right subtree. Find the node that violates this property.",
+            timerPosition: "timer-pos-default",
+            corruptedNodeValue: 70, // Changed from "10" to 70 numeric value
+            treeStructure: {
+                value: 50,
+                left: {
+                    value: 30,
+                    left: {
+                        value: 20,
+                        left: null,
+                        right: null
+                    },
+                    right: {
+                        value: 40,
+                        left: null,
+                        right: null
+                    }
+                },
+                right: {
+                    value: 70, // This is the corrupted node - should be > than 80
+                    left: {
+                        value: 60,
+                        left: null,
+                        right: null
+                    },
+                    right: {
+                        value: 80, // This makes 70 corrupted since it should be < than this node
+                        left: null,
+                        right: {
+                            value: 90,
+                            left: null,
+                            right: null
+                        }
+                    }
+                }
+            },
+            customHTML: `
+                <div class="puzzle-frame">
+                    <p class="nexus-text">Identify the corrupted node in this binary search tree:</p>
+                    <div id="binary-tree" class="binary-tree-container"></div>
+                    <div class="puzzle-input-group" style="margin-top:20px;">
+                        <input type="text" id="corrupted-node-input" placeholder="Enter node value" class="cyberpunk-input" />
+                        <button id="identify-corruption-btn" onclick="checkCorruptedNode()" class="cyberpunk-button">IDENTIFY CORRUPTION</button>
+                    </div>
+                    <div id="key-display-area" class="key-display-area hidden"></div>
+                    <button id="hint-btn" onclick="showHint()" class="hint-btn cyberpunk-button-small">HINT</button>
+                    <div id="hint-display" class="hint-text hidden"></div>
+                </div>
+            `
+        },
+        // LEVEL 5: Graph Pathfinding (New)
+        {
+            levelType: "graphPathfinding",
+            dialogue: "NEXUS: \"Network firewall protocol requires optimization. Find the shortest path through the secured nodes.\"",
+            awardsKey: "PATH_KEY_EPSILON",
+            hint: "Find the shortest path from node A to node F by adding the weights of the edges you traverse. The optimal path has a total weight of 7.",
+            timerPosition: "timer-pos-default",
+            shortestDistance: 7,
+            graphData: {
+                nodes: ["A", "B", "C", "D", "E", "F"],
+                edges: [
+                    ["A", "B", 5],
+                    ["A", "C", 2],
+                    ["B", "D", 4],
+                    ["B", "E", 2],
+                    ["C", "D", 1],
+                    ["C", "E", 6],
+                    ["D", "F", 4],
+                    ["E", "F", 3]
+                ],
+                start: "A",
+                end: "F"
+            },
+            customHTML: `
+                <div class="puzzle-frame">
+                    <p class="nexus-text">Find the shortest path from Node A to Node F:</p>
+                    <div id="graph-visualization" class="graph-visualization"></div>
+                    <div class="puzzle-input-group" style="margin-top:20px;">
+                        <input type="text" id="path-input" placeholder="Enter path (e.g., A,B,F)" class="cyberpunk-input" />
+                        <button id="check-path-btn" onclick="checkGraphPath()" class="cyberpunk-button">VERIFY PATH</button>
+                    </div>
+                    <div id="key-display-area" class="key-display-area hidden"></div>
+                    <button id="hint-btn" onclick="showHint()" class="hint-btn cyberpunk-button-small">HINT</button>
+                    <div id="hint-display" class="hint-text hidden"></div>
+                </div>
+            `
+        },
+        // LEVEL 6: Holographic Maze (Key Required: DATAKEY_ALPHA)
+        {
+            levelType: "holoMaze",
+            dialogue: "NEXUS: \"Welcome to my holographic maze. Navigate through the digital labyrinth to reach the exit point.\"",
+            requiresKeys: ["DATAKEY_ALPHA"],
+            awardsKey: "MAZE_KEY_ZETA",
+            hint: "Move through the maze one cell at a time. Plan your route carefully as some paths may be dead ends.",
+            timerPosition: "timer-pos-default",
+            customHTML: `
+                <div class="puzzle-frame">
+                    <div id="door-locked-message" class="hidden">
+                        <p class="nexus-text">Access denied. Requires DATAKEY_ALPHA to proceed.</p>
+                        <button onclick="showKeysModal()" class="cyberpunk-button-small">SHOW KEYS</button>
+                    </div>
+                    <div id="puzzle-content" class="puzzle-content">
+                        <p class="nexus-text">Navigate through the holographic maze to reach the exit point:</p>
+                        <div id="holo-maze-container" class="holo-maze-container"></div>
+                    <div id="key-display-area" class="key-display-area hidden"></div>
+                    <button id="hint-btn" onclick="showHint()" class="hint-btn cyberpunk-button-small">HINT</button>
+                    <div id="hint-display" class="hint-text hidden"></div>
+                    </div>
+                </div>
+            `
+        },
+        // LEVEL 7: Quantum Circuit (Key Required: COREKEY_BETA)
+        {
+            levelType: "quantumCircuit",
+            dialogue: "NEXUS: \"My quantum processing unit needs recalibration. Arrange the circuit components to establish a stable connection.\"",
+            requiresKeys: ["COREKEY_BETA"],
+            awardsKey: "CIRCUIT_KEY_ETA",
+            hint: "Rotate the circuit pieces to create a continuous path from the input node to the output node. All connection points must be properly aligned.",
+            timerPosition: "timer-pos-default",
+            customHTML: `
+                <div class="puzzle-frame">
+                    <div id="door-locked-message" class="hidden">
+                        <p class="nexus-text">Access denied. Requires COREKEY_BETA to proceed.</p>
+                        <button onclick="showKeysModal()" class="cyberpunk-button-small">SHOW KEYS</button>
+                    </div>
+                    <div id="puzzle-content" class="puzzle-content">
+                        <p class="nexus-text">Arrange the quantum circuit components to create a stable connection:</p>
+                        <div id="quantum-circuit-container" class="quantum-circuit-container"></div>
+                        <div class="puzzle-input-group" style="margin-top:20px;">
+                            <button onclick="checkCircuitConnection()" class="cyberpunk-button">VERIFY CIRCUIT</button>
+                        </div>
+                        <div id="key-display-area" class="key-display-area hidden"></div>
+                        <button id="hint-btn" onclick="showHint()" class="hint-btn cyberpunk-button-small">HINT</button>
+                        <div id="hint-display" class="hint-text hidden"></div>
+                    </div>
+                </div>
+            `
+        },
+        // LEVEL 7: Code Decryption Terminal (Key Required: COREKEY_BETA)
+        {
+            levelType: "codeDecryptionTerminal",
+            dialogue: "NEXUS: \"My security protocols require decryption. Identify and input the correct symbol combination to continue.\"",
+            requiresKeys: ["COREKEY_BETA"],
+            awardsKey: "CIRCUIT_KEY_ETA",
+            hint: "Select the symbols in the correct sequence. Pay attention to the patterns in the surrounding data streams.",
+            timerPosition: "timer-pos-default",
+            customHTML: `
+                <div class="puzzle-frame">
+                    <div id="door-locked-message" class="hidden">
+                        <p class="nexus-text">Access denied. Requires COREKEY_BETA to proceed.</p>
+                        <button onclick="showKeysModal()" class="cyberpunk-button-small">SHOW KEYS</button>
+                    </div>
+                    <div id="puzzle-content" class="puzzle-content">
+                        <p class="nexus-text">Decode the secure protocol by selecting the correct symbol sequence:</p>
+                        <div class="decryption-terminal">
+                            <div id="selected-symbols-display" class="selected-symbols-display"></div>
+                            <div id="symbols-keypad" class="symbols-keypad"></div>
+                            <div class="data-streams">
+                                <div class="data-stream stream-1"></div>
+                                <div class="data-stream stream-2"></div>
+                                <div class="data-stream stream-3"></div>
+                            </div>
+                        </div>
+                        <div class="puzzle-input-group" style="margin-top:20px;">
+                            <button onclick="clearSymbolSelection()" class="cyberpunk-button-small">CLEAR</button>
+                            <button onclick="checkSymbolCode()" class="cyberpunk-button">DECRYPT</button>
+                        </div>
+                        <div id="key-display-area" class="key-display-area hidden"></div>
+                        <button id="hint-btn" onclick="showHint()" class="hint-btn cyberpunk-button-small">HINT</button>
+                        <div id="hint-display" class="hint-text hidden"></div>
+                    </div>
+                </div>
+            `
+        },
+        // LEVEL 8: Pattern Sequence (Key Required: NEURAL_KEY_GAMMA)
+        {
+            levelType: "patternSequence",
+            dialogue: "NEXUS: \"My memory sequences are fragmenting. Memorize and reproduce the neural pattern to stabilize my core processes.\"",
+            requiresKeys: ["NEURAL_KEY_GAMMA"],
+            awardsKey: "SEQUENCE_KEY_THETA",
+            hint: "Watch the sequence carefully, then reproduce it in the exact same order. The pattern will play only once, so pay close attention.",
+            timerPosition: "timer-pos-default",
+            customHTML: `
+                <div class="puzzle-frame">
+                    <div id="door-locked-message" class="hidden">
+                        <p class="nexus-text">Access denied. Requires NEURAL_KEY_GAMMA to proceed.</p>
+                        <button onclick="showKeysModal()" class="cyberpunk-button-small">SHOW KEYS</button>
+                    </div>
+                    <div id="puzzle-content" class="puzzle-content">
+                        <p class="nexus-text">Memorize and reproduce the neural pattern sequence:</p>
+                        <div id="pattern-sequence-container" class="pattern-sequence-container">
+                            <div class="pattern-display"></div>
+                            <div class="pattern-input"></div>
+                        </div>
+                        <div class="puzzle-input-group" style="margin-top:20px;">
+                            <button id="show-pattern-btn" onclick="showPatternSequence()" class="cyberpunk-button-small">SHOW PATTERN</button>
+                            <button id="check-pattern-btn" onclick="checkPatternSequence()" class="cyberpunk-button" disabled>VERIFY SEQUENCE</button>
+                        </div>
+                        <div id="key-display-area" class="key-display-area hidden"></div>
+                        <button id="hint-btn" onclick="showHint()" class="hint-btn cyberpunk-button-small">HINT</button>
+                        <div id="hint-display" class="hint-text hidden"></div>
+                    </div>
+                </div>
+            `
+        },
+        // LEVEL 9: Key Assembly (Pre-Final - Requires 4 Keys)
+        {
+            levelType: "keyAssembly",
+            dialogue: "NEXUS: \"You've made it to my core systems. Insert the collected keys to begin the final override sequence.\"",
+            requiresKeys: ["BINARY_KEY_DELTA", "PATH_KEY_EPSILON", "MAZE_KEY_ZETA", "CIRCUIT_KEY_ETA"],
+            hint: "Insert all four of the specialized keys you've collected from the later challenges. You'll need all of them to proceed to the final override.",
+            timerPosition: "timer-pos-default",
+            customHTML: `
+                <div class="puzzle-frame">
+                    <div id="door-locked-message" class="hidden">
+                        <p class="nexus-text">Access denied. Required keys missing.</p>
+                        <button onclick="showKeysModal()" class="cyberpunk-button-small">SHOW KEYS</button>
+                    </div>
+                    <div id="puzzle-content" class="puzzle-content">
+                        <p class="nexus-text">Insert the collected keys to initiate the final override sequence:</p>
+                        <div id="key-slot-container" class="key-slot-container">
+                            <div class="key-slot" data-key="BINARY_KEY_DELTA" onclick="insertKey('BINARY_KEY_DELTA')">
+                                <div class="key-slot-label">BINARY KEY</div>
+                                <div class="key-slot-placeholder">Insert Key</div>
+                            </div>
+                            <div class="key-slot" data-key="PATH_KEY_EPSILON" onclick="insertKey('PATH_KEY_EPSILON')">
+                                <div class="key-slot-label">PATH KEY</div>
+                                <div class="key-slot-placeholder">Insert Key</div>
+                            </div>
+                            <div class="key-slot" data-key="MAZE_KEY_ZETA" onclick="insertKey('MAZE_KEY_ZETA')">
+                                <div class="key-slot-label">MAZE KEY</div>
+                                <div class="key-slot-placeholder">Insert Key</div>
+                            </div>
+                            <div class="key-slot" data-key="CIRCUIT_KEY_ETA" onclick="insertKey('CIRCUIT_KEY_ETA')">
+                                <div class="key-slot-label">CIRCUIT KEY</div>
+                                <div class="key-slot-placeholder">Insert Key</div>
+                            </div>
+                        </div>
+                        <div class="puzzle-input-group" style="margin-top:20px;">
+                            <button id="init-override-btn" onclick="initiateFinalOverride()" class="cyberpunk-button" disabled>INITIATE OVERRIDE</button>
+                        </div>
+                        <div id="key-display-area" class="key-display-area hidden"></div>
+                        <button id="hint-btn" onclick="showHint()" class="hint-btn cyberpunk-button-small">HINT</button>
+                        <div id="hint-display" class="hint-text hidden"></div>
+                    </div>
+                </div>
+            `
+        },
+        // LEVEL 10: Final Override (Requires All Previous Keys)
+        {
+            levelType: "finalOverride",
+            dialogue: "NEXUS: \"So, you've made it to my core. Complete the final override sequence to escape or be trapped in my neural network forever.\"",
+            requiresKeys: ["SEQUENCE_KEY_THETA"],
+            hint: "You need to insert all previously collected keys in the correct order to complete the override sequence. This is your final challenge.",
+            timerPosition: "timer-pos-critical-center",
+            customHTML: `
+                <div class="puzzle-frame">
+                    <div id="door-locked-message" class="hidden">
+                        <p class="nexus-text">Access denied. Final SEQUENCE_KEY_THETA required.</p>
+                        <button onclick="showKeysModal()" class="cyberpunk-button-small">SHOW KEYS</button>
+                    </div>
+                    <div id="puzzle-content" class="puzzle-content">
+                        <p class="nexus-text">Complete the final override sequence to escape:</p>
+                        <div id="final-override-container" class="final-override-container">
+                            <div class="key-slot-container">
+                                <div class="key-slot" data-key="DATAKEY_ALPHA" onclick="insertKey('DATAKEY_ALPHA')">
+                                    <div class="key-slot-label">DATA KEY</div>
+                                    <div class="key-slot-placeholder">Insert Key</div>
+                                </div>
+                                <div class="key-slot" data-key="COREKEY_BETA" onclick="insertKey('COREKEY_BETA')">
+                                    <div class="key-slot-label">CORE KEY</div>
+                                    <div class="key-slot-placeholder">Insert Key</div>
+                                </div>
+                                <div class="key-slot" data-key="NEURAL_KEY_GAMMA" onclick="insertKey('NEURAL_KEY_GAMMA')">
+                                    <div class="key-slot-label">NEURAL KEY</div>
+                                    <div class="key-slot-placeholder">Insert Key</div>
+                                </div>
+                                <div class="key-slot" data-key="SEQUENCE_KEY_THETA" onclick="insertKey('SEQUENCE_KEY_THETA')">
+                                    <div class="key-slot-label">SEQUENCE KEY</div>
+                                    <div class="key-slot-placeholder">Insert Key</div>
+                                </div>
+                            </div>
+                            <div class="override-code-display">
+                                <div id="code-segments">
+                                    <div class="code-segment">[WAITING]</div>
+                                    <div class="code-segment">[WAITING]</div>
+                                    <div class="code-segment">[WAITING]</div>
+                                    <div class="code-segment">[WAITING]</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="puzzle-input-group" style="margin-top:20px;">
+                            <button id="execute-override-btn" onclick="checkFinalOverride()" class="cyberpunk-button" disabled>EXECUTE OVERRIDE</button>
+                        </div>
+                        <div id="key-display-area" class="key-display-area hidden"></div>
+                        <button id="hint-btn" onclick="showHint()" class="hint-btn cyberpunk-button-small">HINT</button>
+                        <div id="hint-display" class="hint-text hidden"></div>
+                    </div>
+                </div>
+            `
+        }
+    ];
+}
+
+// Define a function to set up the keys system
+function setupKeys() {
+    // Reset all collectedKeys
+    collectedKeys = {};
+    
+    // Reset all inserted keys
+    for (let key in insertedKeys) {
+        insertedKeys[key] = false;
+    }
+    
+    // Map the keys from Levels 1-5 to be used in Levels 6-10
+    // These are the key awards and requirements:
+    // Level 1 awards DATAKEY_ALPHA -> Used for Level 6
+    // Level 2 awards WORD_KEY_BETA -> Used for Level 7 (renamed to COREKEY_BETA)
+    // Level 3 awards NEURAL_KEY_GAMMA -> Used for Level 8
+    // Level 4 awards BINARY_KEY_DELTA -> Used for Level 9
+    // Level 5 awards PATH_KEY_EPSILON -> Used for Level 10
+    
+    // For testing purposes, we could uncomment the next lines to start with some keys
+    /*
+    // Give player all keys for testing
+    collectedKeys["DATAKEY_ALPHA"] = true;  // For Level 6
+    collectedKeys["COREKEY_BETA"] = true;   // For Level 7
+    collectedKeys["NEURAL_KEY_GAMMA"] = true; // For Level 8
+    collectedKeys["BINARY_KEY_DELTA"] = true; // For Level 9
+    collectedKeys["PATH_KEY_EPSILON"] = true; // For Level 9
+    collectedKeys["MAZE_KEY_ZETA"] = true;   // For Level 9
+    collectedKeys["CIRCUIT_KEY_ETA"] = true; // For Level 9
+    */
+    
+    console.log("Keys system initialized", collectedKeys);
+}
+
+// Add a function to check if a key is available
+function hasKey(keyName) {
+    return collectedKeys[keyName] === true;
+}
+
+// Add a function to show the keys modal
+function showKeysModal() {
+    playSound(clickSound);
+    
+    // Create modal container if it doesn't exist
+    let modal = document.getElementById("keys-modal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "keys-modal";
+        modal.className = "level-complete-modal"; // Reuse existing modal styles
+        
+        // Create modal content
+        const modalContent = document.createElement("div");
+        modalContent.className = "level-complete-content";
+        
+        // Add header
+        const title = document.createElement("h2");
+        title.textContent = "Collected Keys";
+        
+        // Add keys list
+        const keysList = document.createElement("div");
+        keysList.className = "keys-list";
+        keysList.style.margin = "20px 0";
+        keysList.style.display = "flex";
+        keysList.style.flexDirection = "column";
+        keysList.style.gap = "15px";
+        
+        // Populate keys list
+        let hasAnyKeys = false;
+        
+        // Define an array with key information
+        const keyInfo = [
+            { name: "DATAKEY_ALPHA", level: 1, desc: "Required for Level 6: Holographic Maze" },
+            { name: "COREKEY_BETA", level: 2, desc: "Required for Level 7: Code Decryption Terminal" },
+            { name: "NEURAL_KEY_GAMMA", level: 3, desc: "Required for Level 8: Pattern Sequence" },
+            { name: "BINARY_KEY_DELTA", level: 4, desc: "Required for Level 9: Key Assembly" },
+            { name: "PATH_KEY_EPSILON", level: 5, desc: "Required for Level 9: Key Assembly" },
+            { name: "MAZE_KEY_ZETA", level: 6, desc: "Required for Level 9: Key Assembly" },
+            { name: "CIRCUIT_KEY_ETA", level: 7, desc: "Required for Level 9: Key Assembly" },
+            { name: "SEQUENCE_KEY_THETA", level: 8, desc: "Required for Level 10: Final Override" }
+        ];
+        
+        // Add each key with more information
+        keyInfo.forEach(key => {
+            const keyItem = document.createElement("div");
+            keyItem.className = "key-item";
+            keyItem.style.padding = "15px";
+            keyItem.style.borderRadius = "5px";
+            
+            if (collectedKeys[key.name]) {
+                hasAnyKeys = true;
+                keyItem.style.background = "rgba(0, 255, 153, 0.2)";
+                keyItem.style.border = "2px solid var(--primary-color)";
+                keyItem.style.boxShadow = "0 0 10px rgba(0, 255, 153, 0.3)";
+                
+                const keyName = document.createElement("div");
+                keyName.textContent = key.name;
+                keyName.style.fontWeight = "bold";
+                keyName.style.marginBottom = "5px";
+                keyName.style.color = "var(--primary-color)";
+                
+                const keyDesc = document.createElement("div");
+                keyDesc.textContent = key.desc;
+                keyDesc.style.fontSize = "0.9em";
+                keyDesc.style.opacity = "0.8";
+                
+                keyItem.appendChild(keyName);
+                keyItem.appendChild(keyDesc);
+            } else {
+                keyItem.style.background = "rgba(255, 0, 0, 0.1)";
+                keyItem.style.border = "2px solid rgba(255, 0, 0, 0.3)";
+                keyItem.style.color = "rgba(255, 255, 255, 0.5)";
+                keyItem.style.fontStyle = "italic";
+                keyItem.textContent = `${key.name} (Not found - Awarded at Level ${key.level})`;
+            }
+            
+            keysList.appendChild(keyItem);
+        });
+        
+        if (!hasAnyKeys) {
+            const noKeysMessage = document.createElement("p");
+            noKeysMessage.textContent = "No keys collected yet.";
+            noKeysMessage.style.fontStyle = "italic";
+            noKeysMessage.style.color = "var(--warning-color)";
+            keysList.appendChild(noKeysMessage);
+        }
+        
+        // Add close button
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "cyberpunk-button-small";
+        closeBtn.textContent = "CLOSE";
+        closeBtn.onclick = function() {
+            document.body.removeChild(modal);
+        };
+        
+        // Assemble modal
+        modalContent.appendChild(title);
+        modalContent.appendChild(keysList);
+        modalContent.appendChild(closeBtn);
+        modal.appendChild(modalContent);
+        
+        // Add to body
+        document.body.appendChild(modal);
+    }
+}
+
+function initGame() {
+    setupLevels();
+    document.addEventListener("keydown", (e) => {
+        if (e.key.toLowerCase() === "p" && !document.getElementById("puzzle-area").classList.contains("hidden")) {
+            togglePause();
+        }
+    });
+}
+
+function startGame() {
+    // Debug output
+    console.log("startGame function called");
+    
+    try {
+        // Reset game state
+        gameState = "playing";
+        currentLevel = 0;
+        totalCompletionTime = 0;
+        levelCompletionTime = {};
+        levelCompleted = Array(gameLevels.length).fill(false);
+        levelPenalties = Array(gameLevels.length).fill(0);
+        
+        // Initialize keys system
+        setupKeys();
+        
+        // Reset collected keys
+        collectedKeys = {};
+        
+        // Hide intro screen and show game elements
+        document.getElementById("story-intro").classList.add("hidden");
+        document.getElementById("game-header").classList.remove("hidden");
+        document.getElementById("puzzle-area").classList.remove("hidden");
+        
+        // Setup and show the first level
+        setupLevels();
+        console.log("Showing level", currentLevel);
+        loadLevel();
+        
+        // Start the game timer
+        startTimer();
+        
+        // Try to play background music, but don't let it block the game
+        try {
+            if (bgMusic && bgMusic.play) {
+                playSound(bgMusic, true);
+            } else {
+                console.warn("Background music not found or not playable");
+            }
+        } catch (soundError) {
+            console.warn("Error playing background music:", soundError);
+        }
+    } catch (error) {
+        console.error("Error in startGame:", error);
+    }
+}
+
+function resetGame() {
+    currentLevel = 0;
+    timeRemaining = 20 * 60; // Changed to 20 minutes
+    isPaused = false;
+    collectedKeys = {}; 
+}
+
+function awardKey(keyName) {
+    if (!keyName) return;
+    
+    // Add key to collected keys
+    collectedKeys[keyName] = true;
+    
+    // Play the key acquisition sound
+    playSound(keyAcquiredSound);
+    
+    console.log(`Key awarded: ${keyName}`, collectedKeys);
+    
+    // Show visual feedback
+    showFeedback(`${keyName} acquired!`, "success");
+}
+
+function showFeedback(message, type = "neutral") {
+    const feedbackDiv = document.getElementById("feedback");
+    if (!feedbackDiv) return;
+    
+    // Clear any previous feedback
+    feedbackDiv.innerHTML = "";
+    
+    // Create feedback message with proper class
+    const feedbackMsg = document.createElement("p");
+    feedbackMsg.className = `feedback-${type}`;
+    feedbackMsg.textContent = message;
+    feedbackDiv.appendChild(feedbackMsg);
+    
+    // Add animation class
+    feedbackDiv.classList.add("active");
+    
+    // Auto-hide after delay (except for important messages)
+    if (type !== "success") {
+        setTimeout(() => {
+            feedbackDiv.classList.remove("active");
+        }, 4000); // Longer display time for better visibility
+    }
+    
+    // Log for debugging
+    console.log(`Feedback (${type}):`, message);
+}
+
+function penalizeTime(seconds) {
+    timeRemaining -= seconds;
+    if (timeRemaining < 0) timeRemaining = 0;
+    updateTimerDisplay();
+    showFeedback(`Time penalty: -${seconds} seconds`, "error");
+}
+
+function nextLevel() {
+    currentLevel++;
+    if (currentLevel < gameLevels.length) {
+        loadLevel();
+    } else {
+        victory(); // Game is complete
+    }
+}
+
+function displayAwardedKey(keyName, callbackOnProceed) {
+    // Collect the key
+    awardKey(keyName);
+    
+    // Show level complete modal
+    levelComplete();
+}
+
+function proceedToNextLevel() {
+    // Hide the level complete modal
+    hideLevelComplete();
+    
+    // Determine if we move to the next level or end the game
+    if (currentLevel < gameLevels.length - 1) {
+        currentLevel++;
+        loadLevel();
+    } else {
+        victory(); // Game is complete
+    }
+}
+
+// Global variable to store user's color sequence
+let userColorSequence = [];
+
+function initColorSequence(level) {
+    userColorSequence = [];
+    const sequenceDisplay = document.getElementById("color-sequence-display");
+    
+    // Create sequence display
+    sequenceDisplay.innerHTML = "";
+    level.sequence.forEach(color => {
+        const colorDiv = document.createElement("div");
+        colorDiv.className = `color-dot ${color}`;
+        sequenceDisplay.appendChild(colorDiv);
+    });
+    
+    // Show sequence briefly, then hide
+    setTimeout(() => {
+        sequenceDisplay.classList.add("hidden");
+        document.getElementById("feedback").innerHTML = "<p>Now reproduce the sequence using the color buttons.</p>";
+    }, 3000);
+}
+
+function addColorToSequence(color) {
+    playSound(clickSound);
+    
+    // Add to user sequence
+    userColorSequence.push(color);
+    
+    // Display user's sequence
+    const userSequenceDisplay = document.getElementById("user-sequence");
+    
+    // Clear and rebuild the sequence display
+    userSequenceDisplay.innerHTML = "";
+    userColorSequence.forEach(userColor => {
+        const colorDiv = document.createElement("div");
+        colorDiv.className = `color-dot ${userColor}`;
+        userSequenceDisplay.appendChild(colorDiv);
+    });
+    
+    // Flash the button that was clicked
+    const button = document.querySelector(`.color-button.${color}`);
+    button.classList.add("active");
+    setTimeout(() => {
+        button.classList.remove("active");
+    }, 200);
+    
+    // Enable check button when sequence is complete
+    const level = gameLevels[currentLevel];
+    if (userColorSequence.length === level.sequence.length) {
+        document.getElementById("check-sequence-btn").classList.add("ready");
+    }
+}
+
+function resetColorSequence() {
+    playSound(clickSound);
+    userColorSequence = [];
+    document.getElementById("user-sequence").innerHTML = "";
+    document.getElementById("check-sequence-btn").classList.remove("ready");
+}
+
+function checkColorSequence() {
+    const level = gameLevels[currentLevel];
+    
+    // If sequence is incomplete, show message
+    if (userColorSequence.length !== level.sequence.length) {
+        playSound(wrongSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Sequence incomplete. Add more colors.</p>";
+        return;
+    }
+    
+    playSound(clickSound);
+    
+    // Check if sequence matches
+    let correct = true;
+    for (let i = 0; i < level.sequence.length; i++) {
+        if (userColorSequence[i] !== level.sequence[i]) {
+            correct = false;
+            break;
+        }
+    }
+    
+    if (correct) {
+        collectedKeys[level.awardsKey] = true;
+        playSound(correctSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Sequence matched! Key Fragment Acquired.</p>";
+        
+        // Show the original sequence again
+        document.getElementById("color-sequence-display").classList.remove("hidden");
+        
+        // Highlight correct sequence
+        const userDots = document.querySelectorAll("#user-sequence .color-dot");
+        userDots.forEach((dot, index) => {
+            setTimeout(() => {
+                dot.classList.add("correct");
+            }, index * 200);
+        });
+        
+        setTimeout(() => {
+            displayAwardedKey(level.awardsKey, proceedToNextLevel);
+        }, 1500);
+    } else {
+        playSound(wrongSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Incorrect sequence. Try again.</p>";
+        
+        // Show error on all dots
+        const userDots = document.querySelectorAll("#user-sequence .color-dot");
+        userDots.forEach(dot => {
+            dot.classList.add("error");
+            setTimeout(() => {
+                dot.classList.remove("error");
+            }, 1000);
+        });
+        
+        penalizeTime(15);
+        resetColorSequence();
+        
+        // Show sequence again briefly
+        document.getElementById("color-sequence-display").classList.remove("hidden");
+        setTimeout(() => {
+            document.getElementById("color-sequence-display").classList.add("hidden");
+        }, 2000);
+    }
+}
+
+function loadLevel() {
+    const currentLevelData = gameLevels[currentLevel];
+    
+    // Update progress indicator
+    document.getElementById("progress-indicator").textContent = `Level ${currentLevel + 1}`;
+    
+    // Clear previous content
+    document.getElementById("puzzle-content").innerHTML = "";
+    document.getElementById("nexus-dialogue").innerHTML = `<p>${currentLevelData.dialogue}</p>`;
+    
+    // Reset feedback
+    showFeedback("");
+    
+    // Apply level-specific timer position if provided
+    resetTimerPosition();
+    
+    if (currentLevelData.timerPosition) {
+        timerElement.className = `timer ${currentLevelData.timerPosition}`;
+    }
+    
+    // Insert the custom HTML for this level
+    if (typeof currentLevelData.customHTML === "function") {
+        document.getElementById("puzzle-content").innerHTML = currentLevelData.customHTML();
+    } else if (typeof currentLevelData.customHTML === "string") {
+        document.getElementById("puzzle-content").innerHTML = currentLevelData.customHTML;
+    }
+    
+    // Initialize level-specific content based on type
+    switch (currentLevelData.levelType) {
+        case "imagePuzzle":
+            initImagePuzzle(currentLevelData.imageSrc);
+            break;
+        case "colorSequence":
+            initColorSequence(currentLevelData);
+            break;
+        case "patternLock":
+            initPatternLock();
+            break;
+        case "riddleText":
+            initRiddleText(currentLevelData);
+            break;
+        case "soundSequence":
+            initSoundSequence();
+            break;
+        case "wordUnscramble":
+            initWordUnscramble(currentLevelData);
+            break;
+        case "eightQueens":
+            initializeEightQueens();
+            break;
+        case "binaryTree":
+            initBinaryTree(currentLevelData);
+            break;
+        case "graphPathfinding":
+            initGraphPathfinding(currentLevelData);
+            break;
+        case "caesarCipher":
+            initCodeDecryption(currentLevelData);
+            break;
+        case "patternMatching":
+            initPatternMatching(currentLevelData);
+            break;
+        case "holoMaze":
+            initializeHoloMaze(currentLevelData);
+            break;
+        case "codeDecryptionTerminal":
+            initializeCodeDecryptionTerminal(currentLevelData);
+            break;
+        case "patternSequence":
+            initializePatternSequence(currentLevelData);
+            break;
+        case "keyAssembly":
+            // Reset inserted keys for new attempt
+            for (let key in insertedKeys) {
+                insertedKeys[key] = false;
+            }
+            // Check key requirements for door
+            checkKeysRequirement(currentLevelData);
+            break;
+        case "finalOverride":
+            // Reset inserted keys for final level
+            for (let key in insertedKeys) {
+                insertedKeys[key] = false;
+            }
+            // Check key requirements for door
+            checkKeysRequirement(currentLevelData);
+            break;
+    }
+    
+    // Check if level requires a specific key, display appropriate message
+    checkKeyRequirement(currentLevelData);
+}
+
+// Function to check if player has the required key
+function checkKeyRequirement(level) {
+    if (!level.requiresKey && !level.requiresKeys) return;
+    
+    // Log for debugging
+    console.log("Checking key requirements for level:", { 
+        currentLevel: currentLevel,
+        levelType: level.levelType,
+        requiresKey: level.requiresKey,
+        requiresKeys: level.requiresKeys,
+        collectedKeys: collectedKeys
+    });
+    
+    const keyStatus = document.getElementById('key-requirement-status');
+    const keyDisplay = document.getElementById('key-usage-display');
+    
+    if (keyStatus && keyDisplay) {
+        if (hasKey(level.requiresKey)) {
+            keyStatus.textContent = `${level.requiresKey} (AVAILABLE)`;
+            keyStatus.style.color = 'var(--success-color)';
+        } else {
+            keyStatus.textContent = `${level.requiresKey} (MISSING)`;
+            keyStatus.style.color = 'var(--error-color)';
+            
+            // Disable puzzle interaction
+            const codeDisplay = document.getElementById('code-lock-display');
+            if (codeDisplay) {
+                codeDisplay.innerHTML = `
+                    <div class="access-denied">
+                        <p>Access Denied: Key fragment ${level.requiresKey} required</p>
+                        <p>Collect this key from earlier levels to proceed</p>
+                    </div>
+                `;
+            }
+        }
+    }
+}
+
+// Function to check if player has all required keys for final level
+function checkKeysRequirement(level) {
+    if (!level.requiresKeys) return;
+    
+    const keyStatus = document.getElementById('key-requirement-status');
+    const finalOverrideContainer = document.getElementById('final-override-container');
+    
+    if (keyStatus) {
+        let missingKeys = [];
+        level.requiresKeys.forEach(key => {
+            if (!hasKey(key)) {
+                missingKeys.push(key);
+            }
+        });
+        
+        if (missingKeys.length === 0) {
+            keyStatus.textContent = `ALL KEYS AVAILABLE`;
+            keyStatus.style.color = 'var(--success-color)';
+        } else {
+            keyStatus.textContent = `${missingKeys.length} KEYS MISSING`;
+            keyStatus.style.color = 'var(--error-color)';
+            
+            // Show which keys are missing
+            if (finalOverrideContainer) {
+                const missingKeysDisplay = document.createElement('div');
+                missingKeysDisplay.className = 'missing-keys-warning';
+                missingKeysDisplay.style.color = 'var(--error-color)';
+                missingKeysDisplay.style.marginTop = '15px';
+                missingKeysDisplay.style.textAlign = 'center';
+                missingKeysDisplay.style.fontStyle = 'italic';
+                
+                let missingText = `Missing keys: ${missingKeys.join(', ')}`;
+                missingKeysDisplay.textContent = missingText;
+                
+                finalOverrideContainer.appendChild(missingKeysDisplay);
+            }
+        }
+    }
+    
+    // Update key slots to show which ones are available
+    const keySlots = document.querySelectorAll('.key-slot');
+    keySlots.forEach(slot => {
+        const requiredKey = slot.dataset.key;
+        if (hasKey(requiredKey)) {
+            slot.classList.add('key-available');
+        } else {
+            slot.classList.add('key-missing');
+        }
+    });
+}
+
+function initRiddleText(level) {
+    if(level.riddle) document.getElementById("riddle-text").textContent = level.riddle;
+    const input = document.getElementById("user-answer");
+    if (input) {
+        input.focus();
+        input.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") checkRiddleAnswer(); 
+        });
+    }
+}
+
+function initImagePuzzle(imageSrc) {
+    const piecesHoldingContainer = document.getElementById("pieces-container");
+    const gridContainer = document.getElementById("image-puzzle-container");
+    puzzlePieces = [];
+    dropTargets = [];
+    
+    if (!piecesHoldingContainer || !gridContainer) return;
+    
+    // Clear containers
+    piecesHoldingContainer.innerHTML = "";
+    gridContainer.innerHTML = "";
+    
+    // Style the pieces container as a 3x3 grid
+    piecesHoldingContainer.style.display = "grid";
+    piecesHoldingContainer.style.gridTemplateColumns = "repeat(3, 1fr)";
+    piecesHoldingContainer.style.gridTemplateRows = "repeat(3, 1fr)";
+    piecesHoldingContainer.style.gap = "5px";
+    piecesHoldingContainer.style.width = "310px";
+    piecesHoldingContainer.style.height = "310px";
+    piecesHoldingContainer.style.padding = "5px";
+    piecesHoldingContainer.style.border = "2px solid var(--secondary-color)";
+    piecesHoldingContainer.style.borderRadius = "5px";
+    piecesHoldingContainer.style.background = "rgba(0, 0, 20, 0.7)";
+    
+    // Create drop targets in the grid container
+    for (let i = 0; i < puzzleGridSize * puzzleGridSize; i++) {
+        const slot = document.createElement("div");
+        slot.classList.add("puzzle-slot");
+        slot.dataset.index = i;
+        addDropEventsToSlot(slot, piecesHoldingContainer);
+        gridContainer.appendChild(slot);
+        dropTargets.push(slot);
+    }
+    
+    // Create puzzle pieces with shuffled order
+    let pieceOrderForDisplay = [...correctPieceOrder];
+    shuffleArray(pieceOrderForDisplay);
+    
+    for (let i = 0; i < puzzleGridSize * puzzleGridSize; i++) {
+        const piece = document.createElement("div");
+        piece.classList.add("puzzle-piece");
+        piece.draggable = true;
+        piece.style.backgroundImage = `url("${imageSrc}")`;
+        
+        const originalPieceIndex = pieceOrderForDisplay[i];
+        const x = (originalPieceIndex % puzzleGridSize) * pieceSize;
+        const y = Math.floor(originalPieceIndex / puzzleGridSize) * pieceSize;
+        
+        piece.style.backgroundPosition = `-${x}px -${y}px`;
+        piece.dataset.originalIndex = originalPieceIndex;
+        
+        addDragEventsToPiece(piece);
+        puzzlePieces.push(piece);
+        piecesHoldingContainer.appendChild(piece);
+    }
+    
+    addDropEventsToHoldingContainer(piecesHoldingContainer);
+}
+
+function addDragEventsToPiece(piece) {
+    piece.addEventListener("dragstart", (e) => {
+        draggedPiece = e.target;
+        e.target.classList.add("dragging");
+        playSound(clickSound);
+        e.dataTransfer.setData("text/plain", e.target.dataset.originalIndex);
+    });
+    piece.addEventListener("dragend", (e) => {
+        e.target.classList.remove("dragging");
+        draggedPiece = null;
+    });
+}
+
+function addDropEventsToSlot(slot, piecesHoldingContainer) {
+    slot.addEventListener("dragover", (e) => e.preventDefault());
+    slot.addEventListener("drop", (e) => {
+        e.preventDefault();
+        if (draggedPiece && slot.classList.contains("puzzle-slot")) {
+            if (!slot.firstChild) {
+                slot.appendChild(draggedPiece);
+            } else {
+                const pieceInSlot = slot.firstChild;
+                const originalParentOfDragged = draggedPiece.parentElement;
+                
+                if (originalParentOfDragged.classList.contains("pieces-container")) {
+                    piecesHoldingContainer.appendChild(pieceInSlot);
+                    // Show container if it was hidden
+                    piecesHoldingContainer.style.display = "grid";
+                } else if (originalParentOfDragged.classList.contains("puzzle-slot")) {
+                    originalParentOfDragged.appendChild(pieceInSlot);
+                }
+                
+                slot.appendChild(draggedPiece);
+            }
+            
+            draggedPiece = null;
+            playSound(clickSound);
+            checkImagePuzzleSolved();
+            
+            // Check if container is empty and hide it
+            if (piecesHoldingContainer.children.length === 0) {
+                piecesHoldingContainer.style.display = "none";
+            }
+        }
+    });
+}
+
+function addDropEventsToHoldingContainer(container) {
+    container.addEventListener("dragover", (e) => e.preventDefault());
+    container.addEventListener("drop", (e) => {
+        e.preventDefault();
+        if (draggedPiece && draggedPiece.parentElement !== container) {
+            container.appendChild(draggedPiece);
+            draggedPiece = null;
+            playSound(clickSound);
+            checkImagePuzzleSolved();
+            
+            // Check if container is empty and hide it if it is
+            if (container.children.length === 0) {
+                container.style.display = "none";
+            }
+        }
+    });
+}
+
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+}
+
+function checkImagePuzzleSolved() {
+    let solved = true;
+    for (let i = 0; i < dropTargets.length; i++) {
+        const targetSlot = dropTargets[i];
+        const pieceNode = targetSlot.firstChild;
+        if (!pieceNode || parseInt(pieceNode.dataset.originalIndex) !== parseInt(targetSlot.dataset.index)) {
+            solved = false; break;
+        }
+    }
+    if (solved) {
+        playSound(correctSound); // Play correct sound for image puzzle
+        const level = gameLevels[currentLevel];
+        
+        // Award the key
+        awardKey(level.awardsKey);
+        playSound(keyAcquiredSound);
+        
+        // Show feedback
+        document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Image reconstruction complete. Memory fragment secured.</p>";
+        
+        // Disable further interaction with puzzle pieces
+        puzzlePieces.forEach(p => p.draggable = false);
+        dropTargets.forEach(s => { 
+            s.removeEventListener("dragover", (e) => e.preventDefault());
+            s.removeEventListener("drop", (e => e.preventDefault()));
+        });
+        
+        const piecesContainer = document.getElementById("pieces-container");
+        if(piecesContainer){
+            piecesContainer.removeEventListener("dragover", (e) => e.preventDefault());
+            piecesContainer.removeEventListener("drop", (e => e.preventDefault()));
+        }
+        
+        // Show level complete modal
+        levelComplete();
+    }
+}
+
+function initPatternLock() { /* Existing code */ }
+function drawPatternLine(ctx, canvas, tempPoint = null) { /* Existing code */ }
+function checkPatternLock() { /* Existing code, but needs key award logic like image puzzle */ }
+function resetCurrentPattern() { /* Existing code */ }
+
+function initSoundSequence() { /* Existing code */ }
+function generateSoundSequence() { /* Existing code */ }
+async function playSystemSoundSequence() { /* Existing code */ }
+async function handleSoundButtonClick(soundInfo, button) { /* Existing code */ }
+function checkSoundSequence() { /* Existing code, but needs key award logic */ }
+let audioContext;
+function getAudioContext() { /* Existing code */ }
+async function playFrequency(frequency, durationMs) { /* Existing code */ }
+
+function checkRiddleAnswer() { // Modified to be generic for any riddle
+    const userAnswerElement = document.getElementById("user-answer") || document.getElementById("user-override-answer");
+    if (!userAnswerElement) return;
+    const userAnswer = userAnswerElement.value.trim().toUpperCase();
+    const level = gameLevels[currentLevel];
+    let correctAnswer = "";
+    if (level.answer) correctAnswer = level.answer.toUpperCase();
+    else if (level.correctCode) correctAnswer = level.correctCode.toUpperCase();
+
+    if (userAnswer === correctAnswer) {
+        // Award key
+        awardKey(level.awardsKey);
+        playSound(correctSound);
+        
+        // Show feedback
+        document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Correct! Key obtained.</p>";
+        
+        // Disable interaction
+        userAnswerElement.disabled = true;
+        const submitBtn = document.getElementById("submit-btn") || document.getElementById("submit-override-btn");
+        if(submitBtn) submitBtn.disabled = true;
+        
+        // Show level complete modal
+        levelComplete();
+    } else {
+        playSound(wrongSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Incorrect. Try again.</p>";
+        timeRemaining -= 10; updateTimerDisplay();
+        userAnswerElement.value = ""; userAnswerElement.focus();
+    }
+}
+
+// --- NEW PUZZLE TYPE INITIALIZERS & CHECKERS (STUBS / BASIC IMPLEMENTATION) ---
+function initQuantumCircuitChallenge(level) {
+    document.getElementById("target-q-state").textContent = JSON.stringify(targetQuantumState);
+    // Placeholder: Actual UI for dragging gates onto qubit lines would be complex.
+    // For now, we use the text input for a simplified gate sequence.
+    const input = document.getElementById("user-quantum-config");
+    if (input) {
+        input.focus();
+        input.addEventListener("keypress", (e) => { if (e.key === "Enter") checkQuantumCircuit(); });
+    }
+}
+function checkQuantumCircuit() {
+    const level = gameLevels[currentLevel];
+    const userInput = document.getElementById("user-quantum-config").value.trim().toUpperCase();
+    // Placeholder: Extremely simplified check. Real quantum circuit simulation is complex.
+    // Example: Expecting a specific sequence like "H0,X1,CNOT01"
+    if (userInput === "H0,X1,CNOT01") { // This is a MOCK solution
+        collectedKeys[level.awardsKey] = true;
+        document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Quantum State Calibrated! Key Fragment Acquired.</p>";
+        displayAwardedKey(level.awardsKey, proceedToNextLevel);
+    } else {
+        playSound(wrongSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Calibration Failed. Quantum Decoherence Detected.</p>";
+        timeRemaining -= 15; updateTimerDisplay();
+    }
+}
+
+function initNeuralNetworkChallenge(level) {
+    document.getElementById("target-nn-accuracy").textContent = targetAccuracy.toString();
+    document.getElementById("current-nn-accuracy").textContent = "0.00";
+    
+    // Create a proper neural network visualization with adjustable weights
+    const weightsContainer = document.getElementById("nn-weights-container");
+    if (!weightsContainer) return;
+    
+    // Define network structure
+    const networkStructure = [3, 4, 2]; // Input, hidden, output layers
+    
+    // Initialize weights if not already set
+    if (Object.keys(currentNNWeights).length === 0) {
+        currentNNWeights = {
+            layer1: Array(networkStructure[0] * networkStructure[1]).fill(0).map(() => Math.random() * 0.2 - 0.1),
+            layer2: Array(networkStructure[1] * networkStructure[2]).fill(0).map(() => Math.random() * 0.2 - 0.1)
+        };
+    }
+    
+    // Create UI for network visualization
+    let html = `
+        <div class="neural-network-visualization">
+            <div class="nn-layer input-layer">
+                ${Array(networkStructure[0]).fill().map((_, i) => 
+                    `<div class="nn-node">I${i+1}</div>`).join('')}
+            </div>
+            <div class="nn-layer hidden-layer">
+                ${Array(networkStructure[1]).fill().map((_, i) => 
+                    `<div class="nn-node">H${i+1}</div>`).join('')}
+            </div>
+            <div class="nn-layer output-layer">
+                ${Array(networkStructure[2]).fill().map((_, i) => 
+                    `<div class="nn-node">O${i+1}</div>`).join('')}
+            </div>
+        </div>
+        <div class="nn-weights-controls">
+            <h3>Layer 1 Weights</h3>
+            <div class="weight-sliders">
+                ${currentNNWeights.layer1.map((w, i) => `
+                    <div class="weight-slider-container">
+                        <label>W${Math.floor(i/networkStructure[1]) + 1}-${i % networkStructure[1] + 1}</label>
+                        <input type="range" 
+                               min="-1" max="1" step="0.1" 
+                               value="${w}" 
+                               class="weight-slider"
+                               data-layer="1" 
+                               data-index="${i}"
+                               oninput="updateNeuralNetworkWeight(this)">
+                        <span class="weight-value">${w.toFixed(1)}</span>
+                    </div>
+                `).join('')}
+            </div>
+            
+            <h3>Layer 2 Weights</h3>
+            <div class="weight-sliders">
+                ${currentNNWeights.layer2.map((w, i) => `
+                    <div class="weight-slider-container">
+                        <label>W${Math.floor(i/networkStructure[2]) + 1}-${i % networkStructure[2] + 1}</label>
+                        <input type="range" 
+                               min="-1" max="1" step="0.1" 
+                               value="${w}" 
+                               class="weight-slider"
+                               data-layer="2" 
+                               data-index="${i}"
+                               oninput="updateNeuralNetworkWeight(this)">
+                        <span class="weight-value">${w.toFixed(1)}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+    
+    weightsContainer.innerHTML = html;
+}
+
+function updateNeuralNetworkWeight(slider) {
+    const layer = slider.dataset.layer;
+    const index = slider.dataset.index;
+    const value = parseFloat(slider.value);
+    
+    if (layer === '1') {
+        currentNNWeights.layer1[index] = value;
+    } else if (layer === '2') {
+        currentNNWeights.layer2[index] = value;
+    }
+    
+    // Update the displayed value
+    slider.nextElementSibling.textContent = value.toFixed(1);
+    
+    // Calculate a preview accuracy based on current weights
+    calculateNeuralNetworkAccuracy();
+}
+
+function calculateNeuralNetworkAccuracy() {
+    // This is a simplified simulation of neural network accuracy
+    // In a real implementation, this would actually run the network on test data
+    
+    // Calculate a "quality score" based on weight distributions
+    let layer1Balance = calculateLayerBalance(currentNNWeights.layer1);
+    let layer2Balance = calculateLayerBalance(currentNNWeights.layer2);
+    
+    // A "good" neural net often has weights distributed around zero with some variation
+    let simulatedAccuracy = 0.5 + 0.3 * layer1Balance + 0.2 * layer2Balance;
+    
+    // Add some randomness to make it feel more realistic
+    simulatedAccuracy += (Math.random() * 0.1) - 0.05;
+    
+    // Clamp between 0 and 1
+    simulatedAccuracy = Math.max(0, Math.min(1, simulatedAccuracy));
+    
+    // Update display
+    document.getElementById("current-nn-accuracy").textContent = simulatedAccuracy.toFixed(2);
+    
+    return simulatedAccuracy;
+}
+
+function calculateLayerBalance(weights) {
+    // A simplistic measure of weight "quality"
+    // In a real neural network, the specific weight values matter in complex ways
+    // But this gives a basic simulation for the game
+    
+    let sum = 0;
+    let sumSquares = 0;
+    
+    for (let w of weights) {
+        sum += w;
+        sumSquares += w * w;
+    }
+    
+    let mean = sum / weights.length;
+    let variance = (sumSquares / weights.length) - (mean * mean);
+    
+    // A "good" distribution typically has mean near 0 and some variance (not too high or low)
+    let meanQuality = 1 - Math.abs(mean); // Closer to 0 is better
+    let varianceQuality = Math.min(variance * 5, 1); // Some variance is good, but not too much
+    
+    return (meanQuality + varianceQuality) / 2;
+}
+
+function checkNeuralNetwork() {
+    const level = gameLevels[currentLevel];
+    playSound(clickSound);
+    
+    document.getElementById("feedback").innerHTML = "<p class=\"info-text\">Training neural network...</p>";
+    
+    // Disable inputs during "training"
+    const sliders = document.querySelectorAll(".weight-slider");
+    sliders.forEach(slider => slider.disabled = true);
+    document.getElementById("train-nn-btn").disabled = true;
+    
+    // Simulate training process with a delay
+    setTimeout(() => {
+        const accuracy = calculateNeuralNetworkAccuracy();
+        
+        if (accuracy >= targetAccuracy) {
+            collectedKeys[level.awardsKey] = true;
+            playSound(correctSound);
+            document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Network Converged! Target Accuracy Achieved. Key Fragment Acquired.</p>";
+            displayAwardedKey(level.awardsKey, proceedToNextLevel);
+        } else {
+            playSound(wrongSound);
+            document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Network Failed to Converge. Current Accuracy: " + accuracy.toFixed(2) + "</p>";
+            
+            // Re-enable inputs
+            sliders.forEach(slider => slider.disabled = false);
+            document.getElementById("train-nn-btn").disabled = false;
+            
+            // Small time penalty
+            penalizeTime(10);
+        }
+    }, 1500);
+}
+
+function checkPatternMatch() {
+    const level = gameLevels[currentLevel];
+    const userAnswer = parseInt(document.getElementById("pattern-input").value);
+    
+    // The pattern is n² + 1: 2, 5, 10, 17, 26, 37, 50
+    // So the next number should be 7² + 1 = 50
+    const correctAnswer = 50;
+    
+    playSound(clickSound);
+    
+    if (userAnswer === correctAnswer) {
+        collectedKeys[level.awardsKey] = true;
+        playSound(correctSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Pattern recognized! Key Fragment Acquired.</p>";
+        
+        // Visual feedback
+        document.getElementById("pattern-input").classList.add("correct-answer");
+        
+        setTimeout(() => {
+            displayAwardedKey(level.awardsKey, proceedToNextLevel);
+        }, 1200);
+    } else {
+        playSound(wrongSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Incorrect sequence. Try again.</p>";
+        
+        // Visual feedback
+        const input = document.getElementById("pattern-input");
+        input.classList.add("wrong-answer");
+        setTimeout(() => {
+            input.classList.remove("wrong-answer");
+        }, 1000);
+        
+        penalizeTime(10);
+    }
+}
+
+function initCryptoSequenceChallenge(level) {
+    document.getElementById("crypto-sequence-text").textContent = level.encryptedData;
+    
+    // Create a visualization of the matrix key system
+    const cryptoSequenceArea = document.createElement("div");
+    cryptoSequenceArea.className = "crypto-sequence-area";
+    
+    // Create a visualization of the matrix key
+    const matrixKeyDisplay = document.createElement("div");
+    matrixKeyDisplay.className = "matrix-key-display";
+    
+    const matrixKey = cryptoMatrixKey.split("");
+    const matrixSize = Math.ceil(Math.sqrt(matrixKey.length));
+    
+    let matrixHTML = "<h3>Matrix Key Visualization</h3><div class='matrix-grid'>";
+    for (let i = 0; i < matrixSize; i++) {
+        for (let j = 0; j < matrixSize; j++) {
+            const index = i * matrixSize + j;
+            if (index < matrixKey.length) {
+                matrixHTML += `<div class='matrix-cell'>${matrixKey[index]}</div>`;
+            } else {
+                matrixHTML += `<div class='matrix-cell empty'></div>`;
+            }
+        }
+    }
+    matrixHTML += "</div>";
+    
+    matrixKeyDisplay.innerHTML = matrixHTML;
+    
+    // Create a visualization of the decryption process
+    const decryptionProcess = document.createElement("div");
+    decryptionProcess.className = "decryption-process";
+    
+    const encryptedChars = level.encryptedData.split("");
+    let decryptionHTML = "<h3>Decryption Process</h3><div class='decryption-steps'>";
+    
+    for (let i = 0; i < encryptedChars.length; i++) {
+        decryptionHTML += `
+            <div class='decryption-step'>
+                <div class='encrypted-char'>${encryptedChars[i]}</div>
+                <div class='decryption-arrow'>→</div>
+                <div class='decrypted-char' id='decrypted-char-${i}'>?</div>
+            </div>
+        `;
+    }
+    
+    decryptionHTML += "</div>";
+    decryptionProcess.innerHTML = decryptionHTML;
+    
+    // Add elements to the crypto sequence area
+    cryptoSequenceArea.appendChild(matrixKeyDisplay);
+    cryptoSequenceArea.appendChild(decryptionProcess);
+    
+    // Add the crypto sequence area before the input section
+    const puzzleFrame = document.querySelector(".puzzle-frame");
+    const puzzleInput = document.querySelector(".puzzle-input");
+    
+    if (puzzleFrame && puzzleInput) {
+        puzzleFrame.insertBefore(cryptoSequenceArea, puzzleInput);
+    }
+    
+    // Set up the input event listener
+    const input = document.getElementById("user-crypto-answer");
+    if (input) {
+        input.focus();
+        input.addEventListener("keypress", e => { 
+            if (e.key === "Enter") checkCryptoSequence(); 
+        });
+        
+        // Add real-time preview of decryption as user types
+        input.addEventListener("input", e => {
+            updateDecryptionPreview(e.target.value);
+        });
+    }
+}
+
+function updateDecryptionPreview(userInput) {
+    const chars = userInput.split("");
+    
+    // Update each decrypted character cell
+    for (let i = 0; i < 10; i++) { // Maximum 10 characters in the sequence
+        const decryptedCharCell = document.getElementById(`decrypted-char-${i}`);
+        if (decryptedCharCell) {
+            decryptedCharCell.textContent = chars[i] || "?";
+            
+            // Add visual feedback
+            decryptedCharCell.className = "decrypted-char";
+            if (chars[i]) {
+                decryptedCharCell.classList.add("filled");
+            }
+        }
+    }
+}
+
+function checkCryptoSequence() {
+    const level = gameLevels[currentLevel];
+    const userAnswer = document.getElementById("user-crypto-answer").value.trim().toUpperCase();
+    playSound(clickSound);
+    
+    // The expected answer is the reverse of the encrypted data
+    // This is a simplified algorithm - in a real game you might use something more complex
+    const expectedAnswer = level.encryptedData.split("").reverse().join("");
+    
+    if (userAnswer === expectedAnswer) {
+        collectedKeys[level.awardsKey] = true;
+        playSound(correctSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Sequence Decrypted! Key Fragment Acquired.</p>";
+        
+        // Show the completed decryption process with a visual effect
+        const decryptedChars = document.querySelectorAll(".decrypted-char");
+        decryptedChars.forEach((cell, index) => {
+            setTimeout(() => {
+                cell.classList.add("correct");
+                cell.textContent = expectedAnswer[index] || "";
+            }, index * 200);
+        });
+        
+        setTimeout(() => {
+            displayAwardedKey(level.awardsKey, proceedToNextLevel);
+        }, 1500);
+    } else {
+        playSound(wrongSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Decryption Failed. Incorrect Sequence.</p>";
+        
+        // Visual feedback for incorrect attempt
+        const decryptedChars = document.querySelectorAll(".decrypted-char");
+        decryptedChars.forEach(cell => {
+            cell.classList.add("error");
+            setTimeout(() => {
+                cell.classList.remove("error");
+            }, 1000);
+        });
+        
+        penalizeTime(15);
+    }
+}
+
+function initSystemOverrideChallenge(level) {
+    document.getElementById("override-prompt-text").textContent = "Enter System Override Protocol:";
+    const input = document.getElementById("user-override-answer");
+    if (input) {
+        input.focus();
+        input.addEventListener("keypress", (e) => { if (e.key === "Enter") checkSystemOverride(); });
+    }
+}
+function checkSystemOverride() {
+    const level = gameLevels[currentLevel];
+    const userAnswer = document.getElementById("user-override-answer").value.trim().toUpperCase();
+    if (userAnswer === level.correctCode.toUpperCase()) {
+        collectedKeys[level.awardsKey] = true;
+        document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Override Protocol Accepted! Key Fragment Acquired.</p>";
+        displayAwardedKey(level.awardsKey, proceedToNextLevel);
+    } else {
+        playSound(wrongSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Protocol Rejected. System Integrity Maintained.</p>";
+        timeRemaining -= 10; updateTimerDisplay();
+    }
+}
+
+function initCodeDecryption(level) {
+    document.getElementById("encrypted-code-text").textContent = level.encryptedText;
+    const keyStatusEl = document.getElementById("level6-key-status");
+    if (collectedKeys[level.requiresKey]) {
+        keyStatusEl.textContent = "ACQUIRED"; keyStatusEl.style.color = "var(--success-color)";
+        decryptionKey = level.requiresKey; 
+    } else {
+        keyStatusEl.textContent = "MISSING"; keyStatusEl.style.color = "var(--error-color)";
+        document.getElementById("user-answer").disabled = true;
+        document.getElementById("submit-btn").disabled = true;
+    }
+    const input = document.getElementById("user-answer");
+    if (input) {
+        input.disabled = !collectedKeys[level.requiresKey]; // Enable/disable based on key
+        input.focus();
+        input.addEventListener("keypress", (e) => { if (e.key === "Enter") checkDecryptionAnswer(); });
+    }
+}
+function checkDecryptionAnswer() {
+    const level = gameLevels[currentLevel];
+    if (!collectedKeys[level.requiresKey]) {
+        document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Required key " + level.requiresKey + " not found!</p>";
+        return;
+    }
+    const userAnswer = document.getElementById("user-answer").value.trim().toUpperCase();
+    let decrypted = "";
+    if (level.decryptionMethod === "caesar") {
+        const shift = -7; 
+        for (let char of level.encryptedText) {
+            if (char.match(/[A-Z]/i)) {
+                let code = char.charCodeAt(0);
+                if ((code >= 65) && (code <= 90)) {
+                    char = String.fromCharCode(((code - 65 + shift + 26) % 26) + 65);
+                }
+            }
+            decrypted += char;
+        }
+    }
+    if (userAnswer === level.expectedAnswer.toUpperCase()) {
+        collectedKeys[level.awardsKey] = true;
+        document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Decryption Successful! Key Fragment Acquired.</p>";
+        displayAwardedKey(level.awardsKey, proceedToNextLevel);
+    } else {
+        playSound(wrongSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Decryption Failed. Password Incorrect.</p>";
+        timeRemaining -= 10; updateTimerDisplay();
+    }
+}
+
+function initNetworkPath(level) { 
+    const keyStatusEl = document.getElementById("level7-key-status");
+    const puzzleArea = document.getElementById("network-path-puzzle-area");
+    if (collectedKeys[level.requiresKey]) {
+        keyStatusEl.textContent = "ACQUIRED"; keyStatusEl.style.color = "var(--success-color)";
+        puzzleArea.innerHTML = "<p>Network Path Puzzle Area - Implement Me!</p><button onclick=\"mockSolveNetworkPath()\" class=\"cyberpunk-button\">(Mock Solve)</button>"; 
+    } else {
+        keyStatusEl.textContent = "MISSING"; keyStatusEl.style.color = "var(--error-color)";
+        puzzleArea.innerHTML = "<p class=\"error-text\">Access Denied. Key " + level.requiresKey + " required.</p>";
+    }
+}
+function mockSolveNetworkPath() { 
+    const level = gameLevels[currentLevel];
+    if (!collectedKeys[level.requiresKey]) { alert("Missing key: " + level.requiresKey); return; }
+    collectedKeys[level.awardsKey] = true;
+    document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Path Found! Key Fragment Acquired.</p>";
+    displayAwardedKey(level.awardsKey, proceedToNextLevel);
+}
+
+function initLogicGateChallenge(level) { 
+    const keyStatusEl = document.getElementById("level8-key-status");
+    const puzzleArea = document.getElementById("logic-gate-puzzle-area");
+    if (collectedKeys[level.requiresKey]) {
+        keyStatusEl.textContent = "ACQUIRED"; keyStatusEl.style.color = "var(--success-color)";
+        puzzleArea.innerHTML = "<p>Logic Gate Puzzle Area - Implement Me!</p><button onclick=\"mockSolveLogicGate()\" class=\"cyberpunk-button\">(Mock Solve)</button>"; 
+    } else {
+        keyStatusEl.textContent = "MISSING"; keyStatusEl.style.color = "var(--error-color)";
+        puzzleArea.innerHTML = "<p class=\"error-text\">Access Denied. Key " + level.requiresKey + " required.</p>";
+    }
+}
+function mockSolveLogicGate() { 
+    const level = gameLevels[currentLevel];
+    if (!collectedKeys[level.requiresKey]) { alert("Missing key: " + level.requiresKey); return; }
+    collectedKeys[level.awardsKey] = true;
+    document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Circuit Configured! Key Fragment Acquired.</p>";
+    displayAwardedKey(level.awardsKey, proceedToNextLevel);
+}
+
+function initDataStreamSync(level) { 
+    const keyStatusEl = document.getElementById("level9-key-status");
+    const puzzleArea = document.getElementById("data-stream-puzzle-area");
+    if (collectedKeys[level.requiresKey]) {
+        keyStatusEl.textContent = "ACQUIRED"; keyStatusEl.style.color = "var(--success-color)";
+        puzzleArea.innerHTML = "<p>Data Stream Sync Puzzle Area - Implement Me!</p><button onclick=\"mockSolveDataStream()\" class=\"cyberpunk-button\">(Mock Solve)</button>"; 
+    } else {
+        keyStatusEl.textContent = "MISSING"; keyStatusEl.style.color = "var(--error-color)";
+        puzzleArea.innerHTML = "<p class=\"error-text\">Access Denied. Key " + level.requiresKey + " required.</p>";
+    }
+}
+function mockSolveDataStream() { 
+    const level = gameLevels[currentLevel];
+    if (!collectedKeys[level.requiresKey]) { alert("Missing key: " + level.requiresKey); return; }
+    collectedKeys[level.awardsKey] = true;
+    document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Streams Synchronized! Key Fragment Acquired.</p>";
+    displayAwardedKey(level.awardsKey, proceedToNextLevel);
+}
+
+function initFinalFirewall(level) {
+    let allKeysPresent = true;
+    let missingKeyList = [];
+    level.requiresKeys.forEach(keyName => {
+        if (!collectedKeys[keyName]) {
+            allKeysPresent = false;
+            missingKeyList.push(keyName);
+        }
+    });
+    const feedbackEl = document.getElementById("feedback");
+    feedbackEl.innerHTML = ""; // Clear previous feedback
+    if (!allKeysPresent) {
+        feedbackEl.innerHTML = `<p class="error-text">Firewall Integrity Alert: Key Fragment(s) MISSING: ${missingKeyList.join(", ")}</p>`;
+        document.getElementById("submit-firewall-btn").disabled = true;
+        // Disable input fields as well
+        for(let i=1; i<=5; i++) document.getElementById(`firewall-key${i}`).disabled = true;
+    } else {
+        feedbackEl.innerHTML = "<p class=\"success-text\">All Key Fragments Detected. Input Override Sequence.</p>";
+        document.getElementById("submit-firewall-btn").disabled = false;
+        for(let i=1; i<=5; i++) document.getElementById(`firewall-key${i}`).disabled = false;
+    }
+}
+function checkFirewallSequence() {
+    const level = gameLevels[currentLevel];
+    const keyInputs = [
+        document.getElementById("firewall-key1").value.trim().toUpperCase(),
+        document.getElementById("firewall-key2").value.trim().toUpperCase(),
+        document.getElementById("firewall-key3").value.trim().toUpperCase(),
+        document.getElementById("firewall-key4").value.trim().toUpperCase(),
+        document.getElementById("firewall-key5").value.trim().toUpperCase()
+    ];
+    const expectedKeys = level.requiresKeys.map(k => k.toUpperCase());
+    let sequenceCorrect = true;
+    for(let i=0; i < keyInputs.length; i++) {
+        if(keyInputs[i] !== expectedKeys[i]) {
+            sequenceCorrect = false;
+            break;
+        }
+    }
+    if (sequenceCorrect) {
+        document.getElementById("feedback").innerHTML = "<p class=\"success-text\">OVERRIDE SEQUENCE ACCEPTED. FIREWALL COMPROMISED!</p>";
+        setTimeout(() => { victory(); }, 2000);
+    } else {
+        playSound(wrongSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Invalid Override Sequence. Firewall Holding.</p>";
+        timeRemaining -= 30; updateTimerDisplay();
+    }
+}
+
+function showHint() {
+    const level = gameLevels[currentLevel];
+    const hintDisplay = document.getElementById("hint-display");
+    const hintBtn = document.getElementById("hint-btn");
+    if (hintDisplay && level.hint && hintBtn && !hintBtn.disabled) {
+        hintDisplay.textContent = `HINT: ${level.hint}`;
+        hintDisplay.classList.remove("hidden");
+        timeRemaining -= 30; updateTimerDisplay();
+        hintBtn.disabled = true; hintBtn.classList.add("hint-used");
+        playSound(clickSound);
+    }
+}
+
+function levelComplete() {
+    if (gameState !== "playing") return;
+    
+    // Update progress
+    levelCompleted[currentLevel] = true;
+    
+    // Show level complete modal
+    showLevelComplete();
+}
+
+// Function to show level completion feedback
+function showLevelComplete() {
+    const currentLevelData = gameLevels[currentLevel];
+    
+    // Create modal container
+    const modal = document.createElement("div");
+    modal.id = "level-complete-modal";
+    modal.className = "level-complete-modal";
+    
+    // Create modal content
+    const modalContent = document.createElement("div");
+    modalContent.className = "level-complete-content";
+    
+    // Add level completion message
+    const title = document.createElement("h2");
+    title.textContent = `Level ${currentLevel + 1} Complete!`;
+    
+    const message = document.createElement("p");
+    
+    // Different feedback for early levels vs escape levels
+    if (currentLevel < 5) {
+        message.textContent = "Security protocol bypassed. Key fragment acquired.";
+        
+        // Add key icon if the level awards a key
+        if (currentLevelData.awardsKey) {
+            const keyIcon = document.createElement("div");
+            keyIcon.className = "key-icon";
+            modalContent.appendChild(keyIcon);
+            
+            const keyName = document.createElement("p");
+            keyName.className = "key-name-display";
+            keyName.textContent = `${currentLevelData.awardsKey} Acquired`;
+            modalContent.appendChild(keyName);
+        }
+    } else {
+        // For levels 6-10, show door opening animation
+        message.textContent = "Security door unlocked. Escape path opened.";
+        
+        // Add door animation
+        const doorContainer = document.createElement("div");
+        doorContainer.className = "door-container";
+        
+        const door = document.createElement("div");
+        door.className = "door";
+        
+        const doorHandle = document.createElement("div");
+        doorHandle.className = "door-handle";
+        
+        const doorKeyhole = document.createElement("div");
+        doorKeyhole.className = "door-keyhole";
+        
+        const doorLight = document.createElement("div");
+        doorLight.className = "door-light";
+        
+        // Add keyhole and handle to door
+        door.appendChild(doorKeyhole);
+        door.appendChild(doorHandle);
+        door.appendChild(doorLight);
+        
+        // Add door to container
+        doorContainer.appendChild(door);
+        
+        // Add behind door content
+        const behindDoor = document.createElement("div");
+        behindDoor.className = "behind-door";
+        
+        // Show which key was used to unlock the door
+        const keyUsed = currentLevelData.requiresKeys ? currentLevelData.requiresKeys[0] : null;
+        if (keyUsed) {
+            const keyInfo = document.createElement("p");
+            keyInfo.className = "key-name-display";
+            keyInfo.textContent = `${keyUsed} Used`;
+            keyInfo.style.position = "absolute";
+            keyInfo.style.bottom = "10px";
+            behindDoor.appendChild(keyInfo);
+        }
+        
+        doorContainer.appendChild(behindDoor);
+        modalContent.appendChild(doorContainer);
+        
+        // Animate door opening after a brief delay
+        setTimeout(() => {
+            door.classList.add("door-open");
+        }, 500);
+    }
+    
+    // Add message to content
+    modalContent.appendChild(title);
+    modalContent.appendChild(message);
+    
+    // Add "next level" button
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "cyberpunk-button";
+    nextBtn.textContent = "CONTINUE";
+    nextBtn.onclick = proceedToNextLevel;
+    modalContent.appendChild(nextBtn);
+    
+    // Add content to modal
+    modal.appendChild(modalContent);
+    
+    // Add modal to body
+    document.body.appendChild(modal);
+    
+    // Play key acquired sound if a key was awarded
+    if (currentLevelData.awardsKey) {
+        playSound(keyAcquiredSound);
+    }
+}
+
+// Function to hide level completion feedback
+function hideLevelComplete() {
+    const modal = document.getElementById("level-complete-modal");
+    if (modal) {
+        document.body.removeChild(modal);
+    }
+}
+
+function startTimer() {
+    timer = setInterval(() => {
+        if (isPaused) return;
+        timeRemaining--;
+        updateTimerDisplay();
+        if (timeRemaining <= 0) { clearInterval(timer); gameOver(); }
+    }, 1000);
+}
+
+function updateTimerDisplay() {
+    if (!timerElement) return;
+    const minutes = Math.floor(timeRemaining / 60);
+    const seconds = timeRemaining % 60;
+    timerElement.textContent = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+    timerElement.classList.remove("timer-warning", "timer-critical");
+    if (timeRemaining <= 60) timerElement.classList.add("timer-critical");
+    else if (timeRemaining <= 300) timerElement.classList.add("timer-warning");
+}
+
+// Reset timer position to default
+function resetTimerPosition() {
+    if (!timerElement) return;
+    timerElement.className = "timer"; // Reset to just the basic timer class
+}
+
+function togglePause() {
+    // Empty function to disable pausing
+    return;
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    const soundBtn = document.getElementById("sound-btn");
+    if (soundBtn) soundBtn.innerHTML = soundEnabled ? `<img src="assets/icons/placeholder_sound_on_icon.png" alt="Sound On">` : `<img src="assets/icons/placeholder_sound_off_icon.png" alt="Sound Off">`;
+    // Actual sound mute/unmute logic for <audio> elements might be needed if not handled by playSound directly
+}
+
+function playSound(soundElement, loop = false) {
+    try {
+        if (soundEnabled && soundElement && typeof soundElement.play === 'function') {
+            // Reset sound to beginning
+            try {
+                soundElement.currentTime = 0;
+            } catch (e) {
+                console.warn("Couldn't reset sound currentTime:", e);
+            }
+            
+            // Set loop property
+            if (typeof soundElement.loop !== 'undefined') {
+                soundElement.loop = loop;
+            }
+            
+            // Play sound with error handling
+            let playPromise = soundElement.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.warn("Audio play failed:", error);
+                });
+            }
+        }
+    } catch (error) {
+        console.warn("Error playing sound:", error);
+    }
+}
+
+function gameOver() {
+    clearInterval(timer);
+    playSound(gameOverSound);
+    document.getElementById("puzzle-area").innerHTML = `
+        <div class="defeat-message">
+            <h2 class="glitch" data-text="CONNECTION TERMINATED">CONNECTION TERMINATED</h2>
+            <p>NEXUS has assimilated your consciousness. The Firewall holds. Reality fragments...</p>
+            <button class="restart-btn cyberpunk-button" onclick="startGame()">REINITIATE PROTOCOL</button>
+        </div>
+    `;
+}
+
+function victory() {
+    clearInterval(timer);
+    playSound(correctSound); 
+    document.getElementById("puzzle-area").innerHTML = `
+        <div class="victory-message">
+            <h2 class="glitch" data-text="FIREWALL BREACHED">FIREWALL BREACHED</h2>
+            <p>You've escaped the clutches of NEXUS. Your mind is your own... for now. The digital echoes fade.</p>
+            <p>All 5 levels completed!</p>
+            <button class="restart-btn cyberpunk-button" onclick="startGame()">RE-ENTER THE MAZE?</button>
+        </div>
+    `;
+}
+
+function initPatternMatching(level) {
+    const input = document.getElementById("pattern-input");
+    if (input) {
+        input.focus();
+        input.value = "";
+        input.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") checkPatternMatch();
+        });
+    }
+    
+    // Add some visual effects to make the sequence interesting
+    const numberElements = document.querySelectorAll(".pattern-number:not(.input-container)");
+    numberElements.forEach((el, index) => {
+        setTimeout(() => {
+            el.classList.add("highlight");
+            setTimeout(() => {
+                el.classList.remove("highlight");
+            }, 300);
+        }, index * 300);
+    });
+}
+
+// Track which letters are placed where in the word unscramble game
+let letterPlacements = Array(10).fill(null);
+
+function initWordUnscramble(level) {
+    letterPlacements = Array(10).fill(null); // Reset placements
+    
+    const scrambledLettersContainer = document.getElementById("scrambled-letters");
+    const answerContainer = document.getElementById("answer-container");
+    
+    if (!scrambledLettersContainer || !answerContainer) return;
+    
+    // Clear the containers first
+    scrambledLettersContainer.innerHTML = "";
+    answerContainer.innerHTML = "";
+    
+    // Create letter tiles based on the scrambled word
+    const letters = level.scrambledWord.split("");
+    letters.forEach((letter, index) => {
+        const tile = document.createElement("div");
+        tile.className = "letter-tile";
+        tile.textContent = letter;
+        tile.dataset.letter = letter;
+        
+        // Add event listener
+        tile.addEventListener("click", function() {
+            if (this.classList.contains("placed")) return; // Skip if already placed
+            playSound(clickSound);
+            placeLetter(this);
+        });
+        
+        scrambledLettersContainer.appendChild(tile);
+        
+        // Animate appearance with delay
+        setTimeout(() => {
+            tile.classList.add("appear");
+        }, index * 100);
+    });
+    
+    // Create answer slots based on the correct word length
+    for (let i = 0; i < level.correctWord.length; i++) {
+        const slot = document.createElement("div");
+        slot.className = "answer-slot";
+        slot.dataset.index = i;
+        
+        // Add event listener to remove letter when clicked
+        slot.addEventListener("click", function() {
+            if (!this.hasChildNodes()) return; // Skip if empty
+            playSound(clickSound);
+            removeLetter(this);
+        });
+        
+        answerContainer.appendChild(slot);
+    }
+}
+
+function placeLetter(letterTile) {
+    // Find the first empty slot
+    const emptySlotIndex = letterPlacements.findIndex(placement => placement === null);
+    if (emptySlotIndex === -1) return; // All slots are filled
+    
+    // Mark the letter as placed
+    letterTile.classList.add("placed");
+    
+    // Store the letter tile's original index to track it
+    const letterValue = letterTile.dataset.letter;
+    
+    // Place in the answer slot
+    const slot = document.querySelector(`.answer-slot[data-index="${emptySlotIndex}"]`);
+    const clonedTile = letterTile.cloneNode(true);
+    clonedTile.classList.add("in-slot");
+    slot.appendChild(clonedTile);
+    
+    // Update placements
+    letterPlacements[emptySlotIndex] = letterValue;
+    
+    // Add click handler to the cloned tile in the slot
+    clonedTile.addEventListener("click", function() {
+        playSound(clickSound);
+        removeLetter(slot);
+    });
+    
+    // Check if all slots are filled
+    if (!letterPlacements.includes(null)) {
+        document.getElementById("check-unscramble-btn").classList.add("ready");
+    }
+}
+
+function removeLetter(slot) {
+    // Get the slot index
+    const slotIndex = parseInt(slot.dataset.index);
+    
+    // Remove the letter from the slot
+    while (slot.firstChild) {
+        slot.removeChild(slot.firstChild);
+    }
+    
+    // Find the original letter tile and mark it as available again
+    const letter = letterPlacements[slotIndex];
+    const originalTile = document.querySelector(`.letter-tile[data-letter="${letter}"]:not(.in-slot)`);
+    if (originalTile) {
+        originalTile.classList.remove("placed");
+    }
+    
+    // Update placements
+    letterPlacements[slotIndex] = null;
+    
+    // Remove ready state from check button
+    document.getElementById("check-unscramble-btn").classList.remove("ready");
+}
+
+function resetUnscramble() {
+    playSound(clickSound);
+    
+    // Clear all answer slots
+    const answerSlots = document.querySelectorAll(".answer-slot");
+    answerSlots.forEach(slot => {
+        while (slot.firstChild) {
+            slot.removeChild(slot.firstChild);
+        }
+    });
+    
+    // Reset all letter tiles
+    const letterTiles = document.querySelectorAll(".letter-tile");
+    letterTiles.forEach(tile => {
+        tile.classList.remove("placed");
+    });
+    
+    // Reset placements
+    letterPlacements = Array(10).fill(null);
+    
+    // Remove ready state from check button
+    document.getElementById("check-unscramble-btn").classList.remove("ready");
+}
+
+function checkUnscramble() {
+    const level = gameLevels[currentLevel];
+    
+    // Check if all slots are filled
+    if (letterPlacements.includes(null)) {
+        playSound(wrongSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Command incomplete. Fill all letter slots.</p>";
+        return;
+    }
+    
+    playSound(clickSound);
+    
+    // Get user's answer
+    const userWord = letterPlacements.join("");
+    
+    // Check if it matches the correct word
+    if (userWord === level.correctWord) {
+        // Award key
+        awardKey(level.awardsKey);
+        playSound(correctSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"success-text\">Command reconstructed! Key Fragment Acquired.</p>";
+        
+        // Visual feedback - highlight all letters green
+        const slots = document.querySelectorAll(".answer-slot");
+        slots.forEach((slot, index) => {
+            setTimeout(() => {
+                if (slot.firstChild) {
+                    slot.firstChild.classList.add("correct");
+                }
+            }, index * 100);
+        });
+        
+        // Show completion after visual feedback
+        setTimeout(() => {
+            levelComplete();
+        }, 1500);
+    } else {
+        playSound(wrongSound);
+        document.getElementById("feedback").innerHTML = "<p class=\"error-text\">Invalid command. Try rearranging the letters.</p>";
+        
+        // Visual feedback - shake all letters
+        const slots = document.querySelectorAll(".answer-slot");
+        slots.forEach(slot => {
+            if (slot.firstChild) {
+                slot.firstChild.classList.add("error");
+                setTimeout(() => {
+                    slot.firstChild.classList.remove("error");
+                }, 1000);
+            }
+        });
+        
+        penalizeTime(15);
+    }
+}
+
+// Initialize the chessboard
+function initializeEightQueens() {
+    const chessboard = document.getElementById("chessboard");
+    if (!chessboard) return;
+    
+    chessboard.innerHTML = "";
+    
+    // Generate 8x8 board
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            const square = document.createElement("div");
+            square.className = `chessboard-square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+            square.dataset.row = row;
+            square.dataset.col = col;
+            square.addEventListener("click", () => toggleQueen(square));
+            chessboard.appendChild(square);
+        }
+    }
+}
+
+function toggleQueen(square) {
+    playSound(clickSound);
+    
+    const queenIcon = square.querySelector(".queen-icon");
+    
+    if (queenIcon) {
+        // Remove queen if already placed
+        square.removeChild(queenIcon);
+    } else {
+        // Only allow placing if there aren't 8 queens already
+        const existingQueens = document.querySelectorAll(".queen-icon");
+        if (existingQueens.length >= 8) {
+            showFeedback("Maximum of 8 quantum nodes allowed. Remove one before adding another.", "error");
+            return;
+        }
+        
+        // Place a new queen
+        const queen = document.createElement("div");
+        queen.className = "queen-icon";
+        square.appendChild(queen);
+        
+        // Check for attacks after placing
+        updateQueenConflicts();
+    }
+}
+
+function updateQueenConflicts() {
+    const queens = document.querySelectorAll(".queen-icon");
+    
+    // Reset all conflicts
+    queens.forEach(queen => {
+        queen.classList.remove("conflict");
+    });
+    
+    // Detect conflicts
+    const positions = [];
+    queens.forEach(queen => {
+        const square = queen.parentElement;
+        const row = parseInt(square.dataset.row);
+        const col = parseInt(square.dataset.col);
+        positions.push({ row, col, element: queen });
+    });
+    
+    // Check each queen against all others
+    for (let i = 0; i < positions.length; i++) {
+        const queen1 = positions[i];
+        
+        for (let j = i + 1; j < positions.length; j++) {
+            const queen2 = positions[j];
+            
+            // Check if they attack each other (same row, column, or diagonal)
+            if (queen1.row === queen2.row || // Same row
+                queen1.col === queen2.col || // Same column
+                Math.abs(queen1.row - queen2.row) === Math.abs(queen1.col - queen2.col)) { // Same diagonal
+                
+                queen1.element.classList.add("conflict");
+                queen2.element.classList.add("conflict");
+            }
+        }
+    }
+}
+
+function resetEightQueens() {
+    playSound(clickSound);
+    initializeEightQueens();
+    showFeedback("Board reset. Place your quantum nodes strategically.", "neutral");
+}
+
+function checkEightQueens() {
+    playSound(clickSound);
+    
+    const queens = document.querySelectorAll(".queen-icon");
+    const conflicts = document.querySelectorAll(".queen-icon.conflict");
+    
+    if (queens.length !== 8) {
+        playSound(wrongSound);
+        showFeedback(`You must place exactly 8 quantum nodes. Currently placed: ${queens.length}.`, "error");
+        penalizeTime(15);
+        return;
+    }
+    
+    if (conflicts.length > 0) {
+        playSound(wrongSound);
+        showFeedback("Invalid configuration. Some nodes are in conflict with each other.", "error");
+        penalizeTime(30);
+        return;
+    }
+    
+    // If we get here, it's a valid solution
+    playSound(correctSound);
+    showFeedback("Correct quantum node configuration established. Security system bypassed.", "success");
+    
+    const currentLevelData = gameLevels[currentLevel];
+    awardKey(currentLevelData.awardsKey);
+    
+    // Disable interaction after successful solution
+    const squares = document.querySelectorAll(".chessboard-square");
+    squares.forEach(square => {
+        square.removeEventListener("click", () => toggleQueen(square));
+        square.style.cursor = "default";
+    });
+    
+    if (document.getElementById("reset-queens-btn")) 
+        document.getElementById("reset-queens-btn").disabled = true;
+    if (document.getElementById("check-queens-btn")) 
+        document.getElementById("check-queens-btn").disabled = true;
+    
+    // Show level complete modal
+    levelComplete();
+}
+
+// Binary Tree Traversal
+function initBinaryTree(level) {
+    const treeContainer = document.getElementById("binary-tree");
+    if (!treeContainer) {
+        console.error("Binary tree container not found");
+        return;
+    }
+    
+    // Clear previous content
+    treeContainer.innerHTML = "";
+    
+    // Create SVG container for the tree
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", "100%");
+    svg.setAttribute("height", "300px");
+    svg.style.position = "relative";
+    treeContainer.appendChild(svg);
+    
+    // Draw the tree nodes and connections
+    drawTreeNode(svg, level.treeStructure, 200, 30, 100);
+    
+    // Make sure the corrupted node input field is accessible
+    const inputField = document.getElementById("corrupted-node-input");
+    if (inputField) {
+        inputField.style.zIndex = "5";
+        inputField.style.position = "relative";
+    }
+    
+    // Make sure the check button is accessible
+    const checkBtn = document.getElementById("identify-corruption-btn");
+    if (checkBtn) {
+        checkBtn.style.zIndex = "5";
+        checkBtn.style.position = "relative";
+    }
+}
+
+// Helper function to draw tree nodes recursively
+function drawTreeNode(svg, node, x, y, horizontalSpacing) {
+    if (!node) return;
+    
+    // Create the node circle
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", x);
+    circle.setAttribute("cy", y);
+    circle.setAttribute("r", 20);
+    circle.setAttribute("fill", "rgba(0, 255, 255, 0.2)");
+    circle.setAttribute("stroke", "var(--tertiary-color)");
+    circle.setAttribute("stroke-width", "2");
+    circle.setAttribute("class", "tree-node");
+    svg.appendChild(circle);
+    
+    // Add node value text
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", x);
+    text.setAttribute("y", y + 5); // Adjust for text centering
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("fill", "var(--primary-color)");
+    text.setAttribute("font-family", "var(--font-secondary)");
+    text.setAttribute("font-size", "16px");
+    text.textContent = node.value;
+    svg.appendChild(text);
+    
+    // Calculate positions for child nodes
+    const nextY = y + 60; // Vertical spacing
+    
+    // Draw left child if it exists
+    if (node.left) {
+        const leftX = x - horizontalSpacing;
+        
+        // Draw connecting line to left child
+        const leftLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        leftLine.setAttribute("x1", x);
+        leftLine.setAttribute("y1", y + 20); // From bottom of parent node
+        leftLine.setAttribute("x2", leftX);
+        leftLine.setAttribute("y2", nextY - 20); // To top of child node
+        leftLine.setAttribute("stroke", "var(--tertiary-color)");
+        leftLine.setAttribute("stroke-width", "2");
+        svg.appendChild(leftLine);
+        
+        // Recursively draw left subtree
+        drawTreeNode(svg, node.left, leftX, nextY, horizontalSpacing / 2);
+    }
+    
+    // Draw right child if it exists
+    if (node.right) {
+        const rightX = x + horizontalSpacing;
+        
+        // Draw connecting line to right child
+        const rightLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        rightLine.setAttribute("x1", x);
+        rightLine.setAttribute("y1", y + 20); // From bottom of parent node
+        rightLine.setAttribute("x2", rightX);
+        rightLine.setAttribute("y2", nextY - 20); // To top of child node
+        rightLine.setAttribute("stroke", "var(--tertiary-color)");
+        rightLine.setAttribute("stroke-width", "2");
+        svg.appendChild(rightLine);
+        
+        // Recursively draw right subtree
+        drawTreeNode(svg, node.right, rightX, nextY, horizontalSpacing / 2);
+    }
+}
+
+function checkTreeTraversal() {
+    playSound(clickSound);
+    const traversalInput = document.getElementById("traversal-input");
+    const currentLevelData = gameLevels[currentLevel];
+    
+    if (!traversalInput || !currentLevelData) return;
+    
+    const userAnswer = traversalInput.value.trim();
+    const expectedAnswer = currentLevelData.correctTraversal;
+    
+    if (userAnswer === expectedAnswer) {
+        playSound(correctSound);
+        showFeedback("Correct traversal sequence identified. Access granted.", "success");
+        awardKey(currentLevelData.awardsKey);
+        displayAwardedKey(currentLevelData.awardsKey, proceedToNextLevel);
+        
+        if (document.getElementById("traversal-input")) document.getElementById("traversal-input").disabled = true;
+        if (document.getElementById("check-tree-btn")) document.getElementById("check-tree-btn").disabled = true;
+    } else {
+        playSound(wrongSound);
+        showFeedback("Incorrect traversal sequence. NEXUS protocols remain active.", "error");
+        penalizeTime(30);
+    }
+}
+
+// Function to check the corrupted node in the binary tree puzzle
+function checkCorruptedNode() {
+    playSound(clickSound);
+    const nodeInput = document.getElementById("corrupted-node-input");
+    const currentLevelData = gameLevels[currentLevel];
+    
+    if (!nodeInput || !currentLevelData) return;
+    
+    const userAnswer = nodeInput.value.trim();
+    const expectedAnswer = currentLevelData.corruptedNodeValue.toString();
+    
+    if (userAnswer === expectedAnswer) {
+        playSound(correctSound);
+        showFeedback("Corruption identified! Binary neural pathway restored.", "success");
+        awardKey(currentLevelData.awardsKey);
+        
+        // Highlight the corrupted node
+        const treeNodes = document.querySelectorAll(".tree-node");
+        treeNodes.forEach(node => {
+            const nodeValue = node.nextElementSibling.textContent;
+            if (nodeValue === expectedAnswer) {
+                node.setAttribute("fill", "rgba(0, 255, 153, 0.5)");
+                node.setAttribute("stroke", "var(--success-color)");
+                node.setAttribute("stroke-width", "3");
+            }
+        });
+        
+        // Disable the input and button
+        nodeInput.disabled = true;
+        const identifyBtn = document.getElementById("identify-corruption-btn");
+        if (identifyBtn) identifyBtn.disabled = true;
+        
+        // Show level complete modal
+        levelComplete();
+    } else {
+        playSound(wrongSound);
+        showFeedback("Incorrect node identified. Neural path still corrupted.", "error");
+        penalizeTime(20);
+        
+        // Clear the input and let the user try again
+        nodeInput.value = "";
+        nodeInput.focus();
+    }
+}
+
+// Graph Pathfinding
+function initGraphPathfinding(level) {
+    const graphContainer = document.getElementById("graph-visualization");
+    graphContainer.innerHTML = "";
+    
+    const { nodes, edges, start, end } = level.graphData;
+    
+    // Calculate node positions in a circle layout
+    const centerX = 200;
+    const centerY = 150;
+    const radius = 120;
+    const nodePositions = {};
+    
+    nodes.forEach((node, index) => {
+        const angle = (index / nodes.length) * 2 * Math.PI;
+        nodePositions[node] = {
+            x: centerX + radius * Math.cos(angle),
+            y: centerY + radius * Math.sin(angle)
+        };
+    });
+    
+    // Create nodes
+    nodes.forEach(node => {
+        const nodeElement = document.createElement("div");
+        nodeElement.className = "graph-node";
+        nodeElement.textContent = node;
+        nodeElement.dataset.node = node; // Add data attribute for CSS targeting
+        nodeElement.style.left = `${nodePositions[node].x}px`;
+        nodeElement.style.top = `${nodePositions[node].y}px`;
+        
+        // Add special styling for start and end nodes
+        if (node === start) {
+            nodeElement.classList.add("start-node");
+            nodeElement.classList.add("node-a");
+        } else if (node === end) {
+            nodeElement.classList.add("end-node");
+            nodeElement.classList.add("node-f");
+        }
+        
+        graphContainer.appendChild(nodeElement);
+    });
+    
+    // Create edges as SVG lines
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("width", "100%");
+    svg.setAttribute("height", "100%");
+    svg.style.position = "absolute";
+    svg.style.top = "0";
+    svg.style.left = "0";
+    svg.style.pointerEvents = "none";
+    graphContainer.appendChild(svg);
+    
+    edges.forEach(edge => {
+        // Handle both array format [from, to, weight] and object format {from, to, weight}
+        let from, to, weight;
+        if (Array.isArray(edge)) {
+            [from, to, weight] = edge;
+        } else {
+            from = edge.from;
+            to = edge.to;
+            weight = edge.weight;
+        }
+        
+        const line = document.createElementNS(svgNS, "line");
+        line.setAttribute("x1", nodePositions[from].x + 20); // +20 to center of node
+        line.setAttribute("y1", nodePositions[from].y + 20);
+        line.setAttribute("x2", nodePositions[to].x + 20);
+        line.setAttribute("y2", nodePositions[to].y + 20);
+        line.setAttribute("stroke", "var(--tertiary-color)");
+        line.setAttribute("stroke-width", "2");
+        line.setAttribute("class", "graph-edge");
+        svg.appendChild(line);
+        
+        // Add weight label
+        const weightElement = document.createElement("div");
+        weightElement.className = "edge-weight";
+        weightElement.textContent = weight;
+        
+        // Better positioning of weight in the middle of the edge
+        const midX = (nodePositions[from].x + nodePositions[to].x) / 2;
+        const midY = (nodePositions[from].y + nodePositions[to].y) / 2;
+        
+        // Slight offset to avoid overlapping with the edge
+        const dx = nodePositions[to].x - nodePositions[from].x;
+        const dy = nodePositions[to].y - nodePositions[from].y;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        
+        // Offset perpendicular to the edge
+        const offsetX = -dy / length * 12;
+        const offsetY = dx / length * 12;
+        
+        weightElement.style.left = `${midX + offsetX}px`;
+        weightElement.style.top = `${midY + offsetY}px`;
+        
+        graphContainer.appendChild(weightElement);
+    });
+}
+
+function checkGraphPath() {
+    playSound(clickSound);
+    const pathInput = document.getElementById("path-input");
+    const currentLevelData = gameLevels[currentLevel];
+    
+    if (!pathInput || !currentLevelData) return;
+    
+    const userPath = pathInput.value.trim().split(',').map(node => node.trim());
+    
+    // Basic validation - check if it's a valid path
+    let isValidPath = true;
+    let pathWeight = 0;
+    
+    if (userPath[0] !== currentLevelData.graphData.start || 
+        userPath[userPath.length - 1] !== currentLevelData.graphData.end) {
+        isValidPath = false;
+    } else {
+        // Check if each consecutive pair of nodes has an edge
+        for (let i = 0; i < userPath.length - 1; i++) {
+            const currentNode = userPath[i];
+            const nextNode = userPath[i + 1];
+            let edgeFound = false;
+            
+            // Find if there's an edge between these nodes
+            for (let edge of currentLevelData.graphData.edges) {
+                if ((edge[0] === currentNode && edge[1] === nextNode) || 
+                    (edge[0] === nextNode && edge[1] === currentNode)) {
+                    edgeFound = true;
+                    pathWeight += edge[2]; // Add edge weight
+                    break;
+                }
+            }
+            
+            if (!edgeFound) {
+                isValidPath = false;
+                break;
+            }
+        }
+    }
+    
+    // Check if it's the shortest path
+    if (isValidPath && pathWeight === currentLevelData.shortestDistance) {
+        playSound(correctSound);
+        showFeedback(`Path verified! Optimal route found with distance ${pathWeight}.`, "success");
+        
+        // Award key and complete level
+        awardKey(currentLevelData.awardsKey);
+        
+        // Disable the input and button
+        if (pathInput) pathInput.disabled = true;
+        const checkBtn = document.getElementById("check-path-btn");
+        if (checkBtn) checkBtn.disabled = true;
+        
+        // Show level complete modal
+        levelComplete();
+    } else if (isValidPath) {
+        playSound(wrongSound);
+        showFeedback(`Path valid but not optimal. Current distance: ${pathWeight}. Shortest possible: ${currentLevelData.shortestDistance}.`, "error");
+        penalizeTime(10);
+    } else {
+        playSound(wrongSound);
+        showFeedback("Invalid path. Security protocol compromised.", "error");
+        penalizeTime(30);
+    }
+}
+
+// Initialize Holographic Maze (Level 6)
+function initializeHoloMaze(level) {
+    // Check if required key is available
+    if (level.requiresKeys && level.requiresKeys.length > 0) {
+        const requiredKey = level.requiresKeys[0]; // Get the first required key
+        const hasRequiredKey = hasKey(requiredKey);
+        
+        console.log("Checking key requirement for Level 6:", { 
+            requiredKey: requiredKey, 
+            hasKey: hasRequiredKey,
+            allKeys: collectedKeys
+        });
+        
+        // Show/hide elements based on key status
+        const doorLockedMessage = document.getElementById("door-locked-message");
+        const puzzleContent = document.getElementById("puzzle-content");
+        
+        if (doorLockedMessage && puzzleContent) {
+            if (!hasRequiredKey) {
+                doorLockedMessage.classList.remove("hidden");
+                puzzleContent.classList.add("hidden");
+                return; // Exit early if key is missing
+            } else {
+                doorLockedMessage.classList.add("hidden");
+                puzzleContent.classList.remove("hidden");
+            }
+        }
+    }
+    
+    const mazeContainer = document.getElementById("holo-maze-container");
+    if (!mazeContainer) return;
+    
+    // Generate maze
+    mazeGrid = generateMaze(mazeSize);
+    
+    // Setup player and target positions
+    playerPosition = { row: 0, col: 0 };
+    targetPosition = { row: mazeSize - 1, col: mazeSize - 1 };
+    
+    // Render maze
+    renderMaze(mazeContainer);
+}
+
+// Generate a random maze with guaranteed path
+function generateMaze(size) {
+    const maze = [];
+    
+    // Initialize with all walls
+    for (let row = 0; row < size; row++) {
+        maze[row] = [];
+        for (let col = 0; col < size; col++) {
+            maze[row][col] = { 
+                isWall: Math.random() < 0.3, // 30% chance of wall
+                isPath: false,
+                isBlocked: false // Add blocked state for key door
+            };
+        }
+    }
+    
+    // Ensure starting and ending positions are not walls
+    maze[0][0].isWall = false;
+    maze[size-1][size-1].isWall = false;
+    
+    // Create a path from start to end using a simple algorithm
+    // This ensures the maze is solvable
+    let currentPosition = { row: 0, col: 0 };
+    const target = { row: size - 1, col: size - 1 };
+    
+    // Mark the starting position as part of the path
+    maze[currentPosition.row][currentPosition.col].isPath = true;
+    
+    // Generate a path from start to end
+    while (currentPosition.row !== target.row || currentPosition.col !== target.col) {
+        // Choose a direction (prioritize moving toward the target)
+        let direction;
+        
+        if (Math.random() < 0.7) {
+            // Move toward target with higher probability
+            if (currentPosition.row < target.row && currentPosition.col < target.col) {
+                direction = Math.random() < 0.5 ? "down" : "right";
+            } else if (currentPosition.row < target.row) {
+                direction = "down";
+            } else if (currentPosition.col < target.col) {
+                direction = "right";
+            } else {
+                direction = Math.random() < 0.5 ? "up" : "left";
+            }
+        } else {
+            // Random direction with lower probability
+            const directions = ["up", "down", "left", "right"];
+            direction = directions[Math.floor(Math.random() * directions.length)];
+        }
+        
+        // Calculate new position
+        let newRow = currentPosition.row;
+        let newCol = currentPosition.col;
+        
+        switch(direction) {
+            case "up": newRow = Math.max(0, currentPosition.row - 1); break;
+            case "down": newRow = Math.min(size - 1, currentPosition.row + 1); break;
+            case "left": newCol = Math.max(0, currentPosition.col - 1); break;
+            case "right": newCol = Math.min(size - 1, currentPosition.col + 1); break;
+        }
+        
+        // Move to new position if valid
+        if (newRow !== currentPosition.row || newCol !== currentPosition.col) {
+            currentPosition = { row: newRow, col: newCol };
+            maze[currentPosition.row][currentPosition.col].isWall = false;
+            maze[currentPosition.row][currentPosition.col].isPath = true;
+        }
+    }
+    
+    // Add a blocked door cell adjacent to the target
+    // First determine a path cell adjacent to the target
+    const possibleBlockCells = [];
+    
+    // Check cells adjacent to the target
+    if (target.row > 0 && !maze[target.row-1][target.col].isWall)
+        possibleBlockCells.push({ row: target.row-1, col: target.col });
+        
+    if (target.row < size-1 && !maze[target.row+1][target.col].isWall)
+        possibleBlockCells.push({ row: target.row+1, col: target.col });
+        
+    if (target.col > 0 && !maze[target.row][target.col-1].isWall)
+        possibleBlockCells.push({ row: target.row, col: target.col-1 });
+        
+    if (target.col < size-1 && !maze[target.row][target.col+1].isWall)
+        possibleBlockCells.push({ row: target.row, col: target.col+1 });
+    
+    // Choose a random cell to block if possible
+    if (possibleBlockCells.length > 0) {
+        const blockCell = possibleBlockCells[Math.floor(Math.random() * possibleBlockCells.length)];
+        maze[blockCell.row][blockCell.col].isBlocked = true;
+    }
+    
+    return maze;
+}
+
+// Render the maze on screen
+function renderMaze(container) {
+    container.innerHTML = "";
+    
+    for (let row = 0; row < mazeGrid.length; row++) {
+        for (let col = 0; col < mazeGrid[row].length; col++) {
+            const cell = document.createElement("div");
+            cell.className = "maze-cell";
+            cell.dataset.row = row;
+            cell.dataset.col = col;
+            
+            // Add appropriate classes
+            if (mazeGrid[row][col].isWall) {
+                cell.classList.add("wall");
+                cell.title = "Wall - Cannot pass through";
+            } else if (row === playerPosition.row && col === playerPosition.col) {
+                cell.classList.add("player");
+                cell.title = "Current Position";
+            } else if (row === targetPosition.row && col === targetPosition.col) {
+                cell.classList.add("target");
+                cell.title = "Exit Point";
+            } else if (mazeGrid[row][col].isBlocked) {
+                cell.classList.add("blocked");
+                cell.title = "Locked Door - Requires a key to unlock";
+            } else if (mazeGrid[row][col].isPath) {
+                cell.classList.add("path");
+                cell.title = "Path";
+            }
+            
+            // Add click event for navigation
+            if (!mazeGrid[row][col].isWall) {
+                cell.addEventListener("click", () => moveThroughMaze(cell));
+            }
+            
+            // Add a visual indicator of adjacent cells to help players
+            if (!mazeGrid[row][col].isWall && 
+                ((Math.abs(row - playerPosition.row) === 1 && col === playerPosition.col) || 
+                 (Math.abs(col - playerPosition.col) === 1 && row === playerPosition.row))) {
+                cell.classList.add("adjacent-move");
+            }
+            
+            container.appendChild(cell);
+        }
+    }
+}
+
+// Handle player movement through the maze
+function moveThroughMaze(cell) {
+    playSound(clickSound);
+    
+    const clickedRow = parseInt(cell.dataset.row);
+    const clickedCol = parseInt(cell.dataset.col);
+    
+    // Check if the clicked cell is adjacent to the player
+    const isHorizontalMove = clickedRow === playerPosition.row && Math.abs(clickedCol - playerPosition.col) === 1;
+    const isVerticalMove = clickedCol === playerPosition.col && Math.abs(clickedRow - playerPosition.row) === 1;
+    const isAdjacent = isHorizontalMove || isVerticalMove;
+    
+    console.log("Move attempt:", {
+        from: playerPosition,
+        to: { row: clickedRow, col: clickedCol },
+        isHorizontalMove: isHorizontalMove,
+        isVerticalMove: isVerticalMove,
+        isAdjacent: isAdjacent,
+        isWall: clickedRow >= 0 && clickedRow < mazeGrid.length && clickedCol >= 0 && clickedCol < mazeGrid[0].length ? mazeGrid[clickedRow][clickedCol].isWall : "unknown",
+        isBlocked: clickedRow >= 0 && clickedRow < mazeGrid.length && clickedCol >= 0 && clickedCol < mazeGrid[0].length ? mazeGrid[clickedRow][clickedCol].isBlocked : "unknown"
+    });
+    
+    // Check if trying to move to a blocked cell
+    if (isAdjacent && mazeGrid[clickedRow][clickedCol].isBlocked) {
+        let keyName = "DATAKEY_ALPHA"; // The key needed for this level
+        
+        if (hasKey(keyName)) {
+            // Unblock the cell if player has the key
+            mazeGrid[clickedRow][clickedCol].isBlocked = false;
+            playSound(keyAcquiredSound);
+            showFeedback(`Using ${keyName} to unlock the door.`, "success");
+            
+            // Re-render the maze
+            const mazeContainer = document.getElementById("holo-maze-container");
+            renderMaze(mazeContainer);
+            return;
+        } else {
+            // Show message that key is needed
+            playSound(wrongSound);
+            showFeedback("This path is locked. Find a key to unlock it.", "error");
+            return;
+        }
+    }
+    
+    // Move player if valid move
+    if (isAdjacent && !mazeGrid[clickedRow][clickedCol].isWall && !mazeGrid[clickedRow][clickedCol].isBlocked) {
+        // Update player position
+        playerPosition = { row: clickedRow, col: clickedCol };
+        
+        // Re-render maze
+        const mazeContainer = document.getElementById("holo-maze-container");
+        renderMaze(mazeContainer);
+        
+        // Check if player reached the target
+        if (playerPosition.row === targetPosition.row && playerPosition.col === targetPosition.col) {
+            playSound(correctSound);
+            showFeedback("Maze exit reached! Security path breached.", "success");
+            
+            // Award key and complete level
+            const currentLevelData = gameLevels[currentLevel];
+            awardKey(currentLevelData.awardsKey);
+            
+            // Show level complete modal
+            levelComplete();
+        }
+    } else if (!isAdjacent) {
+        // Invalid move - provide feedback
+        playSound(wrongSound);
+        showFeedback("Invalid move. You can only move one cell at a time to adjacent cells.", "error");
+    } else if (mazeGrid[clickedRow][clickedCol].isWall) {
+        // Wall collision
+        playSound(wrongSound);
+        showFeedback("Cannot move through security walls. Find another path.", "error");
+    } else {
+        // Generic error
+        playSound(wrongSound);
+        showFeedback("Invalid move. You can only move one cell at a time to adjacent non-wall cells.", "error");
+    }
+}
+
+// Initialize Quantum Circuit (Level 7)
+function initializeQuantumCircuit(level) {
+    // Check if required key is available
+    if (level.requiresKeys && level.requiresKeys.length > 0) {
+        const requiredKey = level.requiresKeys[0]; // Get the first required key
+        const hasRequiredKey = hasKey(requiredKey);
+        
+        // Show/hide elements based on key status
+        const doorLockedMessage = document.getElementById("door-locked-message");
+        const puzzleContent = document.getElementById("puzzle-content");
+        
+        if (doorLockedMessage && puzzleContent) {
+            if (!hasRequiredKey) {
+                doorLockedMessage.classList.remove("hidden");
+                puzzleContent.classList.add("hidden");
+                return; // Exit early if key is missing
+            } else {
+                doorLockedMessage.classList.add("hidden");
+                puzzleContent.classList.remove("hidden");
+            }
+        }
+    }
+    
+    const circuitContainer = document.getElementById("quantum-circuit-container");
+    if (!circuitContainer) return;
+    
+    // Create container for circuit
+    circuitContainer.innerHTML = `
+        <div class="quantum-circuit-grid" id="circuit-grid"></div>
+        <div class="circuit-nodes">
+            <div class="circuit-node input-node" style="top: 45px; left: 5px;"></div>
+            <div class="circuit-node output-node" style="bottom: 45px; right: 5px;"></div>
+        </div>
+    `;
+    
+    // Initialize circuit pieces
+    const grid = document.getElementById("circuit-grid");
+    if (!grid) return;
+    
+    const pieceTypes = ["straight", "corner", "tjunction"];
+    circuitPieces = [];
+    
+    // Create circuit grid (3x3)
+    for (let i = 0; i < 9; i++) {
+        // Select a random piece type and rotation
+        const typeIndex = Math.floor(Math.random() * pieceTypes.length);
+        const type = pieceTypes[typeIndex];
+        const rotation = Math.floor(Math.random() * 4) * 90; // 0, 90, 180, or 270 degrees
+        
+        // Create piece element
+        const piece = document.createElement("div");
+        piece.className = `circuit-piece ${type}`;
+        piece.style.transform = `rotate(${rotation}deg)`;
+        piece.dataset.type = type;
+        piece.dataset.rotation = rotation;
+        
+        // Add click event to rotate piece
+        piece.addEventListener("click", () => rotateCircuitPiece(piece));
+        
+        // Add to grid
+        grid.appendChild(piece);
+        circuitPieces.push(piece);
+    }
+}
+
+// Initialize Code Decryption Terminal (Level 7 - NEW)
+function initializeCodeDecryptionTerminal(level) {
+    // Check if required key is available
+    if (level.requiresKeys && level.requiresKeys.length > 0) {
+        const requiredKey = level.requiresKeys[0]; // Get the first required key
+        const hasRequiredKey = hasKey(requiredKey);
+        
+        // Show/hide elements based on key status
+        const doorLockedMessage = document.getElementById("door-locked-message");
+        const puzzleContent = document.getElementById("puzzle-content");
+        
+        if (doorLockedMessage && puzzleContent) {
+            if (!hasRequiredKey) {
+                doorLockedMessage.classList.remove("hidden");
+                puzzleContent.classList.add("hidden");
+                return; // Exit early if key is missing
+            } else {
+                doorLockedMessage.classList.add("hidden");
+                puzzleContent.classList.remove("hidden");
+            }
+        }
+    }
+    
+    // Initialize the selected symbols array
+    selectedSymbols = [];
+    
+    // Get the keypad and display containers
+    const symbolsKeypad = document.getElementById("symbols-keypad");
+    const selectedSymbolsDisplay = document.getElementById("selected-symbols-display");
+    
+    if (!symbolsKeypad || !selectedSymbolsDisplay) return;
+    
+    // Clear previous content
+    symbolsKeypad.innerHTML = '';
+    selectedSymbolsDisplay.innerHTML = '';
+    
+    // Create symbol keys
+    codeSymbols.forEach(symbol => {
+        const symbolKey = document.createElement("div");
+        symbolKey.className = "symbol-key";
+        symbolKey.textContent = symbol;
+        symbolKey.addEventListener("click", () => selectSymbol(symbol));
+        symbolsKeypad.appendChild(symbolKey);
+    });
+    
+    // Update the selected symbols display
+    updateSymbolsDisplay();
+    
+    // Add animated background data streams
+    animateDataStreams();
+}
+
+// Function to select a symbol
+function selectSymbol(symbol) {
+    playSound(clickSound);
+    
+    // Only add if we haven't reached the maximum length
+    if (selectedSymbols.length < maxCodeLength) {
+        selectedSymbols.push(symbol);
+        updateSymbolsDisplay();
+    }
+}
+
+// Function to clear symbol selection
+function clearSymbolSelection() {
+    playSound(clickSound);
+    selectedSymbols = [];
+    updateSymbolsDisplay();
+}
+
+// Function to update the symbols display
+function updateSymbolsDisplay() {
+    const display = document.getElementById("selected-symbols-display");
+    if (!display) return;
+    
+    // Clear the display
+    display.innerHTML = '';
+    
+    // Add each selected symbol
+    selectedSymbols.forEach(symbol => {
+        const symbolElement = document.createElement("div");
+        symbolElement.className = "selected-symbol";
+        symbolElement.textContent = symbol;
+        display.appendChild(symbolElement);
+    });
+    
+    // Add placeholder symbols for remaining slots
+    for (let i = selectedSymbols.length; i < maxCodeLength; i++) {
+        const placeholderElement = document.createElement("div");
+        placeholderElement.className = "selected-symbol";
+        placeholderElement.textContent = "•";
+        placeholderElement.style.opacity = "0.3";
+        display.appendChild(placeholderElement);
+    }
+}
+
+// Function to animate data streams (visual effect)
+function animateDataStreams() {
+    const streams = document.querySelectorAll(".data-stream");
+    
+    streams.forEach(stream => {
+        // Add random animated data characters (just visual effect)
+        setInterval(() => {
+            const dataChar = document.createElement("div");
+            dataChar.className = "data-char";
+            dataChar.textContent = Math.random() > 0.5 ? "1" : "0";
+            dataChar.style.position = "absolute";
+            dataChar.style.top = Math.random() * 100 + "%";
+            dataChar.style.left = Math.random() * 100 + "%";
+            dataChar.style.opacity = "0.6";
+            dataChar.style.fontSize = "12px";
+            dataChar.style.color = "var(--primary-color)";
+            
+            stream.appendChild(dataChar);
+            
+            // Remove after animation
+            setTimeout(() => {
+                dataChar.remove();
+            }, 3000);
+        }, 300);
+    });
+}
+
+// Function to check the input symbol code
+function checkSymbolCode() {
+    playSound(clickSound);
+    
+    const currentLevelData = gameLevels[currentLevel];
+    
+    // Check if the selected symbols match the correct combination
+    let isCorrect = true;
+    
+    if (selectedSymbols.length !== correctCodeCombination.length) {
+        isCorrect = false;
+    } else {
+        for (let i = 0; i < selectedSymbols.length; i++) {
+            if (selectedSymbols[i] !== correctCodeCombination[i]) {
+                isCorrect = false;
+                break;
+            }
+        }
+    }
+    
+    if (isCorrect) {
+        // Success
+        playSound(correctSound);
+        showFeedback("Security protocol decrypted. Access granted.", "success");
+        
+        // Award key and complete level
+        awardKey(currentLevelData.awardsKey);
+        
+        // Show level complete modal
+        levelComplete();
+    } else {
+        // Failure
+        playSound(wrongSound);
+        showFeedback("Invalid sequence. Security protocol remains active.", "error");
+        penalizeTime(15);
+        
+        // Clear the selection
+        setTimeout(() => {
+            clearSymbolSelection();
+        }, 1000);
+    }
+}
+
+// Rotate circuit piece on click
+function rotateCircuitPiece(piece) {
+    playSound(clickSound);
+    
+    // Get current rotation and add 90 degrees
+    let rotation = parseInt(piece.dataset.rotation);
+    rotation = (rotation + 90) % 360;
+    
+    // Update rotation
+    piece.dataset.rotation = rotation;
+    piece.style.transform = `rotate(${rotation}deg)`;
+}
+
+// Check if the circuit is connected correctly
+function checkCircuitConnection() {
+    playSound(clickSound);
+    
+    // Get current configuration
+    const config = [];
+    const grid = document.getElementById("circuit-grid");
+    if (!grid) return;
+    
+    const pieces = grid.querySelectorAll(".circuit-piece");
+    pieces.forEach(piece => {
+        config.push(`${piece.dataset.type}-${piece.dataset.rotation}`);
+    });
+    
+    console.log("Current circuit configuration:", config);
+    console.log("Expected circuit configuration:", correctCircuitConfig);
+    
+    // Count how many pieces match the correct configuration
+    let matches = 0;
+    for (let i = 0; i < config.length; i++) {
+        if (config[i] === correctCircuitConfig[i]) {
+            matches++;
+        }
+    }
+    
+    // Count how many rotations were made
+    let rotationsNeeded = 0;
+    // The initial configuration is random (0, 90, 180, or 270 degrees)
+    // So we need to calculate how many 90-degree rotations are needed
+    
+    // For demonstration purposes, let's say we need exactly 3 rotations total
+    const currentLevelData = gameLevels[currentLevel];
+    
+    if (matches >= 6) { // Accept if at least 6 pieces match
+        playSound(correctSound);
+        showFeedback("Quantum circuit validated. Energy flow stabilized.", "success");
+        
+        // Award key and complete level
+        awardKey(currentLevelData.awardsKey);
+        
+        // Show level complete modal
+        levelComplete();
+    } else {
+        playSound(wrongSound);
+        showFeedback("Circuit configuration invalid. Energy cannot flow from input to output.", "error");
+        penalizeTime(15);
+    }
+}
+
+// Initialize Pattern Sequence (Level 8)
+function initializePatternSequence(level) {
+    // Check if required key is available
+    if (level.requiresKeys && level.requiresKeys.length > 0) {
+        const requiredKey = level.requiresKeys[0]; // Get the first required key
+        const hasRequiredKey = hasKey(requiredKey);
+        
+        // Show/hide elements based on key status
+        const doorLockedMessage = document.getElementById("door-locked-message");
+        const puzzleContent = document.getElementById("puzzle-content");
+        
+        if (doorLockedMessage && puzzleContent) {
+            if (!hasRequiredKey) {
+                doorLockedMessage.classList.remove("hidden");
+                puzzleContent.classList.add("hidden");
+                return; // Exit early if key is missing
+            } else {
+                doorLockedMessage.classList.add("hidden");
+                puzzleContent.classList.remove("hidden");
+            }
+        }
+    }
+    
+    const patternContainer = document.getElementById("pattern-sequence-container");
+    if (!patternContainer) return;
+    
+    // Create container for pattern sequence
+    patternContainer.innerHTML = `
+        <div class="pattern-display" id="pattern-display">
+            <div class="pattern-number">?</div>
+            <div class="pattern-number">?</div>
+            <div class="pattern-number">?</div>
+            <div class="pattern-number">?</div>
+            <div class="pattern-number">?</div>
+        </div>
+        <p class="nexus-text">Memorize the sequence and repeat it:</p>
+        <div class="pattern-input" id="pattern-input">
+            <div class="pattern-number" data-value="1" onclick="addToUserPattern(1, this)">1</div>
+            <div class="pattern-number" data-value="2" onclick="addToUserPattern(2, this)">2</div>
+            <div class="pattern-number" data-value="3" onclick="addToUserPattern(3, this)">3</div>
+            <div class="pattern-number" data-value="4" onclick="addToUserPattern(4, this)">4</div>
+            <div class="pattern-number" data-value="5" onclick="addToUserPattern(5, this)">5</div>
+        </div>
+        <div class="user-sequence" id="user-sequence">
+            <p>Your sequence: <span id="user-sequence-display"></span></p>
+        </div>
+    `;
+    
+    // Reset user pattern
+    userPattern = [];
+    
+    // Generate random pattern if not already set
+    if (!sequencePattern || sequencePattern.length === 0) {
+        sequencePattern = [];
+        for (let i = 0; i < 5; i++) {
+            sequencePattern.push(Math.floor(Math.random() * 5) + 1);
+        }
+    }
+}
+
+// Display the pattern sequence
+function showPatternSequence() {
+    if (isDisplayingPattern) return;
+    playSound(clickSound);
+    
+    isDisplayingPattern = true;
+    
+    // Get display elements
+    const displayElements = document.querySelectorAll("#pattern-display .pattern-number");
+    
+    // Reset display
+    displayElements.forEach(el => {
+        el.textContent = "?";
+        el.classList.remove("highlight");
+    });
+    
+    // Show each number in sequence
+    let index = 0;
+    const showNext = () => {
+        if (index < sequencePattern.length) {
+            // Show current number
+            displayElements[index].textContent = sequencePattern[index];
+            displayElements[index].classList.add("highlight");
+            
+            // Schedule next number or cleanup
+            setTimeout(() => {
+                displayElements[index].classList.remove("highlight");
+                displayElements[index].textContent = "?";
+                index++;
+                setTimeout(showNext, 300);
+            }, 1000);
+        } else {
+            isDisplayingPattern = false;
+        }
+    };
+    
+    showNext();
+}
+
+// Add user selection to pattern
+function addToUserPattern(value, button) {
+    if (isDisplayingPattern || userPattern.length >= sequencePattern.length) return;
+    
+    playSound(clickSound);
+    
+    // Add to user pattern
+    userPattern.push(value);
+    
+    // Update display
+    document.getElementById("user-sequence-display").textContent = userPattern.join(" - ");
+    
+    // Visual feedback
+    button.classList.add("highlight");
+    setTimeout(() => button.classList.remove("highlight"), 300);
+}
+
+// Check if user's pattern matches the sequence
+function checkPatternSequence() {
+    playSound(clickSound);
+    
+    if (userPattern.length !== sequencePattern.length) {
+        playSound(wrongSound);
+        showFeedback("Incomplete sequence. Input all 5 numbers.", "error");
+        return;
+    }
+    
+    // Check sequence
+    let matches = 0;
+    for (let i = 0; i < sequencePattern.length; i++) {
+        if (userPattern[i] === sequencePattern[i]) {
+            matches++;
+        }
+    }
+    
+    const currentLevelData = gameLevels[currentLevel];
+    
+    if (matches === sequencePattern.length) {
+        playSound(correctSound);
+        showFeedback("Sequence match confirmed. Neural pathway reconstructed.", "success");
+        
+        // Award key and complete level
+        awardKey(currentLevelData.awardsKey);
+        
+        // Show level complete modal
+        levelComplete();
+    } else {
+        playSound(wrongSound);
+        showFeedback(`Sequence mismatch. ${matches} of ${sequencePattern.length} correct.`, "error");
+        
+        // Reset user pattern
+        userPattern = [];
+        document.getElementById("user-sequence-display").textContent = "";
+        
+        penalizeTime(20);
+    }
+}
+
+// Function to insert a key in the key slots
+function insertKey(keyName) {
+    playSound(clickSound);
+    
+    // Check if the key has been collected
+    if (!hasKey(keyName)) {
+        showFeedback(`Missing key: ${keyName}. The key must be collected before it can be inserted.`, "error");
+        return;
+    }
+    
+    // Get the key slot element
+    const keySlot = document.querySelector(`.key-slot[data-key="${keyName}"]`);
+    if (!keySlot) return;
+    
+    // Toggle the key inserted state
+    if (insertedKeys[keyName]) {
+        // Remove the key
+        insertedKeys[keyName] = false;
+        keySlot.classList.remove("key-inserted");
+        keySlot.querySelector(".key-slot-placeholder").textContent = "Insert Key";
+        showFeedback(`${keyName} removed.`, "neutral");
+    } else {
+        // Insert the key
+        insertedKeys[keyName] = true;
+        keySlot.classList.add("key-inserted");
+        keySlot.querySelector(".key-slot-placeholder").textContent = "Key Inserted";
+        showFeedback(`${keyName} inserted successfully.`, "success");
+        playSound(keyAcquiredSound);
+    }
+    
+    // Check if all required keys are inserted for the current level
+    const currentLevelData = gameLevels[currentLevel];
+    
+    if (currentLevelData.levelType === "keyAssembly") {
+        // Check if all 4 keys are inserted for Level 9
+        const allKeysInserted = currentLevelData.requiresKeys.every(key => insertedKeys[key]);
+        const overrideBtn = document.getElementById("init-override-btn");
+        
+        if (overrideBtn) {
+            overrideBtn.disabled = !allKeysInserted;
+            
+            if (allKeysInserted) {
+                overrideBtn.classList.add("ready");
+                showFeedback("All keys inserted. Ready to initiate override sequence.", "success");
+            }
+        }
+    } else if (currentLevelData.levelType === "finalOverride") {
+        // For Level 10, update the code segments as keys are inserted
+        updateCodeSegments();
+        
+        // Check if all required keys for final override are inserted
+        const allKeysInserted = ["DATAKEY_ALPHA", "COREKEY_BETA", "NEURAL_KEY_GAMMA", "SEQUENCE_KEY_THETA"].every(key => insertedKeys[key]);
+        const executeBtn = document.getElementById("execute-override-btn");
+        
+        if (executeBtn) {
+            executeBtn.disabled = !allKeysInserted;
+            
+            if (allKeysInserted) {
+                executeBtn.classList.add("ready");
+                showFeedback("Final override sequence ready for execution.", "success");
+            }
+        }
+    }
+}
+
+// Function to update the code segments in the final level
+function updateCodeSegments() {
+    const codeSegments = document.querySelectorAll(".code-segment");
+    if (!codeSegments || codeSegments.length === 0) return;
+    
+    const keySegmentMap = {
+        "DATAKEY_ALPHA": 0,
+        "COREKEY_BETA": 1,
+        "NEURAL_KEY_GAMMA": 2,
+        "SEQUENCE_KEY_THETA": 3
+    };
+    
+    // Update each segment based on inserted keys
+    for (const [key, index] of Object.entries(keySegmentMap)) {
+        if (insertedKeys[key] && codeSegments[index]) {
+            // Generate a random code segment for visual effect
+            const codeFragment = generateRandomCode(8);
+            codeSegments[index].textContent = codeFragment;
+            codeSegments[index].classList.add("active");
+        } else if (codeSegments[index]) {
+            codeSegments[index].textContent = "[WAITING]";
+            codeSegments[index].classList.remove("active");
+        }
+    }
+}
+
+// Helper function to generate random code segments
+function generateRandomCode(length) {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
+// Function to initiate the final override in Level 9
+function initiateFinalOverride() {
+    const currentLevelData = gameLevels[currentLevel];
+    
+    // Check if all required keys are inserted
+    const allKeysInserted = currentLevelData.requiresKeys.every(key => insertedKeys[key]);
+    
+    if (!allKeysInserted) {
+        showFeedback("Cannot initiate override. Some required keys are missing.", "error");
+        return;
+    }
+    
+    playSound(correctSound);
+    showFeedback("Override sequence initiated. Access to final level granted.", "success");
+    
+    // Show a success animation
+    const keySlots = document.querySelectorAll(".key-slot");
+    keySlots.forEach((slot, index) => {
+        setTimeout(() => {
+            slot.style.boxShadow = "0 0 30px var(--primary-color)";
+        }, index * 300);
+    });
+    
+    // Proceed to the next level after a delay
+    setTimeout(() => {
+        proceedToNextLevel();
+    }, 2500);
+}
+
+// Function to check the final override in Level 10
+function checkFinalOverride() {
+    // Check if all required keys are inserted in the correct order
+    const requiredKeys = ["DATAKEY_ALPHA", "COREKEY_BETA", "NEURAL_KEY_GAMMA", "SEQUENCE_KEY_THETA"];
+    const allKeysInserted = requiredKeys.every(key => insertedKeys[key]);
+    
+    if (!allKeysInserted) {
+        showFeedback("Final override incomplete. All keys must be inserted.", "error");
+        return;
+    }
+    
+    playSound(correctSound);
+    showFeedback("OVERRIDE SUCCESSFUL. NEXUS CONTAINMENT PROTOCOLS DISABLED.", "success");
+    
+    // Show a success animation
+    const codeSegments = document.querySelectorAll(".code-segment");
+    codeSegments.forEach((segment, index) => {
+        setTimeout(() => {
+            segment.style.color = "var(--primary-color)";
+            segment.style.textShadow = "0 0 10px var(--primary-color)";
+        }, index * 300);
+    });
+    
+    // Victory after a delay
+    setTimeout(() => {
+        victory();
+    }, 3000);
+}
+
+.data-streams {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Allow clicks to pass through */
+    z-index: 0;
+}
+
+.data-stream {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.stream-1 {
+    top: 0;
+    left: 0;
+    opacity: 0.3;
+}
+
+.stream-2 {
+    top: 20%;
+    left: -10%;
+    transform: rotate(20deg);
+    opacity: 0.2;
+}
+
+.stream-3 {
+    bottom: 10%;
+    right: 5%;
+    transform: rotate(-15deg);
+    opacity: 0.25;
+}

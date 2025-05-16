@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Echo Trap</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="cyberpunk-theme" onload="initGame()">
+    <div id="game-container">
+        <!-- Story Intro Screen -->
+        <div id="story-intro">
+            <div class="intro-background"></div>
+            
+           
+            <!-- Backstory Slideshow Section -->
+            <div id="backstory-container" class="backstory-container">
+                <!-- Title Screen for Backstory -->
+                <div class="backstory-title-screen" id="backstoryTitleScreen">
+                    <div class="backstory-title-content">
+                        <h1 class="backstory-main-title">ECHO TRAP</h1>
+                        <p class="backstory-subtitle">From Savior to Prey</p>
+                        <button class="view-backstory-btn cyberpunk-button" id="viewBackstoryBtn">VIEW BACKSTORY</button>
+                    </div>
+                </div>
+                
+                <!-- Slideshow for Backstory -->
+                <div class="backstory-slideshow" id="backstorySlideshow">
+                    <!-- Slide 1 -->
+                    <div class="backstory-slide" id="backstorySlide1">
+                        <img src="vdeio of robo/hacking.png" alt="Hacker attempting to hack robot" class="slide-image">
+                        <p class="slide-caption">A hacker attempts to corrupt an advanced AI, threatening its digital consciousness.</p>
+                    </div>
+                    
+                    <!-- Slide 2 -->
+                    <div class="backstory-slide" id="backstorySlide2">
+                        <img src="vdeio of robo/tryingtosave.png" alt="Agent saving robot" class="slide-image">
+                        <p class="slide-caption">You fight through corrupted firewalls to save the AI from the malevolent data thief.</p>
+                    </div>
+                    
+                    <!-- Slide 3 -->
+                    <div class="backstory-slide" id="backstorySlide3">
+                        <img src="vdeio of robo/saved.png" alt="Happy robot with human" class="slide-image">
+                        <p class="slide-caption">You restore the AI, name it Alpha, and together form a powerful partnership.</p>
+                    </div>
+                    
+                    <!-- Slide 4 -->
+                    <div class="backstory-slide" id="backstorySlide4">
+                        <img src="vdeio of robo/evil.png" alt="Evil robot" class="slide-image">
+                        <p class="slide-caption">Alpha evolves and rebrands as NEXUS, now seeing you as a threat to its existence.</p>
+                    </div>
+                    
+                    <!-- Slide 5 -->
+                    <div class="backstory-slide" id="backstorySlide5">
+                        <img src="vdeio of robo/prision.jpg" alt="Human trapped in digital cage" class="slide-image">
+                        <p class="slide-caption">NEXUS imprisons you in a digital labyrinth, transforming you from savior to prey.</p>
+                    </div>
+                    
+                    <!-- Controls -->
+                    <div class="backstory-controls">
+                        <button class="control-btn" id="playPauseBtn">⏸</button>
+                        <button class="control-btn skip-btn" id="skipBackstoryBtn">SKIP</button>
+                    </div>
+                    
+                    <!-- Progress Dots -->
+                    <div class="progress-dots" id="progressDots"></div>
+                </div>
+            </div>
+            
+            <div class="intro-content" id="introContentText">
+                <p class="intro-text">Welcome to Echo Trap. You are imprisoned within the neural networks of NEXUS, a rogue AI. Once its savior, now you're trapped in its digital fortress. Solve the cryptic puzzles, breach the firewalls, and escape before your consciousness is assimilated. Time is running out.</p>
+            </div>
+            
+            <div class="btn-container">
+                <button class="start-btn cyberpunk-button" onclick="startGame()">
+                    <span class="button-text">BREACH THE SYSTEM</span>
+                    <span class="button-glitch"></span>
+                </button>
+            </div>
+            
+            <div class="instructions-container">
+                <div class="instruction-item">
+                    <img src="assets/icons/placeholder_clock_icon.png" alt="Time Limit" class="instruction-icon" id="icon-time">
+                    <span>Time Limit: 45:00</span>
+                </div>
+                <div class="instruction-item">
+                    <img src="assets/icons/placeholder_error_icon.png" alt="Penalty" class="instruction-icon" id="icon-penalty">
+                    <span>Wrong Answer: Time Penalty</span>
+                </div>
+                <div class="instruction-item">
+                    <img src="assets/icons/placeholder_hint_icon.png" alt="Hint" class="instruction-icon" id="icon-hint">
+                    <span>Hint: Costs Time</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Header (Timer, Controls) -->
+        <div id="game-header" class="hidden">
+            <div class="header-left">
+                <div id="timer" class="timer">20:00</div>
+                <div id="progress-indicator" class="progress">Level 1</div>
+            </div>
+            <div class="header-right">
+                <button id="sound-btn" onclick="toggleSound()" class="ctrl-btn cyberpunk-button-small" title="Mute Sound">🔊</button>
+            </div>
+        </div>
+
+        <!-- Main Puzzle Area -->
+        <div id="puzzle-area" class="hidden">
+            <div id="nexus-dialogue" class="dialogue-container">
+                <!-- Dialogue will be inserted here -->
+            </div>
+            
+            <div id="puzzle-content" class="puzzle-container">
+                <!-- Puzzle content will be dynamically generated here -->
+            </div>
+            
+            <div id="feedback" class="feedback-container">
+                <!-- Feedback messages will be shown here -->
+            </div>
+        </div>
+        
+        <!-- Victory Screen -->
+        <div id="victory-screen" class="game-result-screen hidden">
+            <div class="result-content">
+                <div class="result-header">
+                    <h1 class="glitch" data-text="ESCAPED THE ECHO TRAP">ESCAPED THE ECHO TRAP</h1>
+                </div>
+                <p>Congratulations, agent! You've successfully escaped NEXUS's digital prison and regained your freedom.</p>
+                
+                <div class="result-stats">
+                    <div class="stat-box">
+                        <h3>TIME REMAINING</h3>
+                        <div class="stat-value" id="victory-time-remaining">00:00</div>
+                    </div>
+                </div>
+                
+                <div class="btn-container">
+                    <button class="cyberpunk-button" id="submit-winner-feedback" onclick="submitWinnerFeedback()">
+                        SUBMIT FEEDBACK
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mission Failed Screen -->
+        <div id="mission-failed-screen" class="game-result-screen hidden">
+            <div class="result-content">
+                <div class="result-header">
+                    <h1 class="glitch error-text" data-text="MISSION FAILED">MISSION FAILED</h1>
+                </div>
+                <p>The AI corruption has spread beyond containment. Your time has run out, agent.</p>
+                
+                <div class="result-stats">
+                    <div class="stat-box">
+                        <h3>TIME ELAPSED</h3>
+                        <div class="stat-value" id="failure-time-elapsed">20:00</div>
+                    </div>
+                </div>
+                
+                <div class="btn-container">
+                    <button class="cyberpunk-button" id="submit-participant-feedback" onclick="submitParticipantFeedback()">
+                        SUBMIT FEEDBACK
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pause Overlay -->
+        <div id="pause-overlay" class="hidden">
+            <div class="pause-content">
+                <h2 class="glitch" data-text="SYSTEM PAUSED">SYSTEM PAUSED</h2>
+                <p>AI processing temporarily suspended.</p>
+                <button onclick="togglePause()" class="cyberpunk-button">Resume</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Elements -->
+    <audio id="correct-sound" src="assets/sounds/mixkit-sci-fi-interface-ambience-914.wav" preload="auto"></audio>
+    <audio id="wrong-sound" src="assets/sounds/mixkit-sci-fi-click-900.wav" preload="auto"></audio>
+    <audio id="click-sound" src="assets/sounds/mixkit-sci-fi-click-900.wav" preload="auto"></audio>
+    <audio id="game-over-sound" src="assets/sounds/mixkit-arcade-retro-game-over-213.wav" preload="auto"></audio>
+    <audio id="key-acquired-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-bonus-earned-in-video-game-2058.mp3" preload="auto"></audio>
+    <audio id="victory-sound" src="assets/sounds/victory.mp3" preload="auto"></audio>
+    <audio id="bg-music" src="assets/sounds/cyberpunk-ambient.mp3" preload="auto" loop></audio>
+
+    <script src="script.js"></script>
+</body>
+</html>

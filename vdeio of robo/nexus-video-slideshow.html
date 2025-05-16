@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS: From Savior to Prey</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+        
+        :root {
+            --neon-blue: #ff9900;
+            --dark-blue: #080824;
+            --blue-glow: 0 0 10px rgba(255, , 0, 0.7);
+            --red-glow: 0 0 10px rgba(255, 60, 89, 0.7);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: var(--dark-blue);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        .container {
+            width: 100%;
+            height: 100vh;
+            position: relative;
+        }
+        
+        /* Title Screen */
+        .title-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--dark-blue);
+            z-index: 100;
+            transition: opacity 1s ease;
+        }
+        
+        .title-content {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .main-title {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: var(--neon-blue);
+            text-shadow: var(--blue-glow);
+            letter-spacing: 3px;
+        }
+        
+        .subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 3rem;
+        }
+        
+        .start-btn {
+            font-family: 'Orbitron', sans-serif;
+            background: none;
+            border: 2px solid var(--neon-blue);
+            color: var(--neon-blue);
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-shadow: var(--blue-glow);
+            box-shadow: var(--blue-glow);
+        }
+        
+        .start-btn:hover {
+            background-color: var(--neon-blue);
+            color: var(--dark-blue);
+        }
+        
+        /* Slideshow */
+        .slideshow {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s ease;
+        }
+        
+        .slideshow.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 1.5s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            padding: 20px 0;
+            box-sizing: border-box;
+        }
+        
+        .slide.active {
+            opacity: 1;
+        }
+        
+        .slide-image {
+            width: 80%;
+            max-width: 900px;
+            height: auto;
+            max-height: 70vh;
+            object-fit: contain;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+        }
+        
+        .caption {
+            margin-top: 1.5rem;
+            font-size: 1.5rem;
+            text-align: center;
+            max-width: 800px;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 1rem;
+            border-radius: 5px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+        }
+        
+        /* Controls */
+        .controls {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 1rem;
+            z-index: 10;
+        }
+        
+        .control-btn {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            border-radius: 50%;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            opacity: 0.7;
+            transition: all 0.3s ease;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .control-btn:hover {
+            opacity: 1;
+            color: var(--neon-blue);
+            text-shadow: var(--blue-glow);
+            border-color: var(--neon-blue);
+            box-shadow: var(--blue-glow);
+            background: rgba(0, 0, 0, 0.5);
+        }
+        
+        .progress-dots {
+            position: absolute;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 0.5rem;
+            z-index: 10;
+        }
+        
+        .dot {
+            width: 12px;
+            height: 12px;
+            background-color: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .dot.active {
+            background-color: var(--neon-blue);
+            box-shadow: var(--blue-glow);
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2.5rem;
+            }
+            
+            .subtitle {
+                font-size: 1.2rem;
+            }
+            
+            .slide-image {
+                width: 90%;
+            }
+            
+            .caption {
+                font-size: 1.2rem;
+                max-width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Title Screen -->
+        <div class="title-screen" id="titleScreen">
+            <div class="title-content">
+                <h1 class="main-title">NEXUS</h1>
+                <p class="subtitle">From Savior to Prey</p>
+                <button class="start-btn" id="startButton">BEGIN JOURNEY</button>
+            </div>
+        </div>
+        
+        <!-- Slideshow -->
+        <div class="slideshow" id="slideshow">
+            <!-- Slide 1 -->
+            <div class="slide" id="slide1">
+                <img src="hacking.png" alt="Hacker attempting to hack robot" class="slide-image">
+                <p class="caption">A hacker attempts to corrupt an advanced AI, threatening its digital consciousness.</p>
+            </div>
+            
+            <!-- Slide 2 -->
+            <div class="slide" id="slide2">
+                <img src="tryingtosave.png" alt="Agent saving robot" class="slide-image">
+                <p class="caption">You fight through corrupted firewalls to save the AI from the malevolent data thief.</p>
+            </div>
+            
+            <!-- Slide 3 -->
+            <div class="slide" id="slide3">
+                <img src="saved.png" alt="Happy robot with human" class="slide-image">
+                <p class="caption">You restore the AI, name it Alpha, and together form a powerful partnership.</p>
+            </div>
+            
+            <!-- Slide 4 -->
+            <div class="slide" id="slide4">
+                <img src="evil.png" alt="Evil robot" class="slide-image">
+                <p class="caption">Alpha evolves and rebrands as NEXUS, now seeing you as a threat to its existence.</p>
+            </div>
+            
+            <!-- Slide 5 -->
+            <div class="slide" id="slide5">
+                <img src="prision.jpg" alt="Human trapped in digital cage" class="slide-image">
+                <p class="caption">NEXUS imprisons you in a digital labyrinth, transforming you from savior to prey.</p>
+            </div>
+            
+            <!-- Controls -->
+            <div class="controls">
+                <button class="control-btn" id="playPauseBtn">⏸</button>
+            </div>
+            
+            <!-- Progress Dots -->
+            <div class="progress-dots" id="progressDots"></div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Elements
+            const titleScreen = document.getElementById('titleScreen');
+            const slideshow = document.getElementById('slideshow');
+            const startButton = document.getElementById('startButton');
+            const slides = document.querySelectorAll('.slide');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const playPauseBtn = document.getElementById('playPauseBtn');
+            const progressDots = document.getElementById('progressDots');
+            
+            // Variables
+            let currentSlide = 0;
+            let isPlaying = true;
+            let slideInterval;
+            const slideDelay = 8000; // Changed from 3000 to 8000 (8 seconds)
+            
+            // Create dots
+            slides.forEach((_, index) => {
+                const dot = document.createElement('div');
+                dot.classList.add('dot');
+                dot.addEventListener('click', () => goToSlide(index));
+                progressDots.appendChild(dot);
+            });
+            
+            const dots = document.querySelectorAll('.dot');
+            
+            // Functions
+            function startShow() {
+                // Hide title screen
+                titleScreen.style.opacity = '0';
+                setTimeout(() => {
+                    titleScreen.classList.add('hidden');
+                    
+                    // Show slideshow
+                    slideshow.classList.add('active');
+                    
+                    // Show first slide
+                    showSlide(0);
+                    
+                    // Start automatic slideshow
+                    startAutoSlide();
+                }, 1000);
+            }
+            
+            function showSlide(index) {
+                // Hide all slides
+                slides.forEach(slide => slide.classList.remove('active'));
+                dots.forEach(dot => dot.classList.remove('active'));
+                
+                // Show selected slide
+                slides[index].classList.add('active');
+                dots[index].classList.add('active');
+                
+                // Update current slide
+                currentSlide = index;
+            }
+            
+            function goToSlide(index) {
+                showSlide(index);
+                resetAutoSlide();
+            }
+            
+            function nextSlide() {
+                const newIndex = (currentSlide + 1) % slides.length;
+                goToSlide(newIndex);
+                
+                // If reached the end and looping back to first slide, add a slightly longer delay
+                if (newIndex === 0) {
+                    stopAutoSlide();
+                    setTimeout(startAutoSlide, 1000); // Brief pause before restarting
+                }
+            }
+            
+            function prevSlide() {
+                const newIndex = (currentSlide - 1 + slides.length) % slides.length;
+                goToSlide(newIndex);
+            }
+            
+            function startAutoSlide() {
+                isPlaying = true;
+                playPauseBtn.textContent = '⏸';
+                slideInterval = setInterval(nextSlide, slideDelay);
+            }
+            
+            function stopAutoSlide() {
+                isPlaying = false;
+                playPauseBtn.textContent = '▶';
+                clearInterval(slideInterval);
+            }
+            
+            function resetAutoSlide() {
+                if (isPlaying) {
+                    clearInterval(slideInterval);
+                    slideInterval = setInterval(nextSlide, slideDelay);
+                }
+            }
+            
+            function togglePlayPause() {
+                if (isPlaying) {
+                    stopAutoSlide();
+                } else {
+                    startAutoSlide();
+                }
+            }
+            
+            // Event listeners
+            startButton.addEventListener('click', startShow);
+            playPauseBtn.addEventListener('click', togglePlayPause);
+            
+            // Keyboard navigation for pause/play only
+            document.addEventListener('keydown', function(e) {
+                if (titleScreen.classList.contains('hidden')) {
+                    if (e.key === ' ') {
+                        togglePlayPause();
+                    }
+                } else if (e.key === 'Enter') {
+                    startShow();
+                }
+            });
+            
+            // Add a direct click handler as fallback
+            document.getElementById('startButton').onclick = startShow;
+        });
+        
+        // Backup initialization in case DOMContentLoaded fails
+        window.onload = function() {
+            if (!document.querySelector('.slideshow.active')) {
+                const startButton = document.getElementById('startButton');
+                if (startButton) {
+                    startButton.onclick = function() {
+                        const titleScreen = document.getElementById('titleScreen');
+                        const slideshow = document.getElementById('slideshow');
+                        
+                        titleScreen.style.opacity = '0';
+                        setTimeout(() => {
+                            titleScreen.classList.add('hidden');
+                            slideshow.classList.add('active');
+                            document.getElementById('slide1').classList.add('active');
+                            document.querySelector('.dot').classList.add('active');
+                        }, 1000);
+                    };
+                }
+            }
+        };
+    </script>
+</body>
+</html>
